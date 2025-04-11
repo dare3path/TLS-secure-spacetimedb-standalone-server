@@ -1,0 +1,1076 @@
+* this is work in progress, even though it works so far (rust client, some cli commands)
+* but some things are wrong curently the 'login' not accepting server URLs has to be removed.
+* contains PR1700 already (I will try to get it removed, most likely)
+* and another one for max level(made up)
+* didn't include Cargo.lock but it's definitely 'cargo update'-ed
+* uploaded today as is, else I'd have to postpone it until tomorrow+ when it's actually ready
+
+diff --git a/Cargo.toml b/Cargo.toml
+index 6609ba9df..5987d8713 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -52,7 +52,8 @@ resolver = "3"
+ [profile.release]
+ opt-level = 3
+ debug-assertions = false
+-overflow-checks = false
++overflow-checks = true
++debug=true
+ lto = "thin"
+ panic = 'unwind'
+ incremental = false
+@@ -65,12 +66,12 @@ lto = "thin"
+ 
+ [profile.dev]
+ opt-level = 0
+-debug = true
++debug = 1
+ debug-assertions = true
+ overflow-checks = true
+ lto = false
+ panic = 'unwind'
+-incremental = true
++incremental = false
+ codegen-units = 256
+ rpath = false
+ 
+@@ -192,6 +193,7 @@ memchr = "2"
+ mimalloc = "0.1.39"
+ nohash-hasher = "0.2"
+ once_cell = "1.16"
++p256 = "0.13.2"
+ parking_lot = { version = "0.12.1", features = ["send_guard", "arc_lock"] }
+ paste = "1.0"
+ percent-encoding = "2.3"
+@@ -208,8 +210,9 @@ quote = "1.0.8"
+ rand = "0.8.5"
+ rayon = "1.8"
+ rayon-core = "1.11.0"
++rcgen = { version = "0.13.1", features = ["pem", "x509-parser", "crypto", "ring"] }
+ regex = "1"
+-reqwest = { version = "0.12", features = ["stream", "json"] }
++reqwest = { version = "0.12", features = ["stream", "json", "rustls-tls"] }
+ ron = "0.8"
+ rusqlite = { version = "0.29.0", features = ["bundled", "column_decltype"] }
+ rust_decimal = { version = "1.29.1", features = ["db-tokio-postgres"] }
+@@ -248,7 +251,7 @@ thin-vec = "0.2.13"
+ thiserror = "1.0.37"
+ tokio = { version = "1.37", features = ["full"] }
+ tokio-postgres = { version = "0.7.8", features = ["with-chrono-0_4"] }
+-tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
++tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
+ tokio-util = { version = "0.7.4", features = ["time"] }
+ toml = "0.8"
+ toml_edit = "0.22.22"
+@@ -276,10 +279,6 @@ xdg = "2.5"
+ tikv-jemallocator = { version = "0.6.0", features = ["profiling", "stats"] }
+ tikv-jemalloc-ctl = { version = "0.6.0", features = ["stats"]}
+ 
+-# Vendor the openssl we rely on, rather than depend on a
+-# potentially very old system version.
+-openssl = { version = "0.10", features = ["vendored"] }
+-
+ [workspace.dependencies.wasmtime]
+ version = "25"
+ default-features = false
+diff --git a/crates/cli/Cargo.toml b/crates/cli/Cargo.toml
+index a83b67a4d..93760d2dd 100644
+--- a/crates/cli/Cargo.toml
++++ b/crates/cli/Cargo.toml
+@@ -68,7 +68,7 @@ tokio.workspace = true
+ tokio-tungstenite.workspace = true
+ toml.workspace = true
+ toml_edit.workspace = true
+-tracing = { workspace = true, features = ["release_max_level_off"] }
++tracing = { workspace = true } #, features = ["release_max_level_off"] }
+ walkdir.workspace = true
+ wasmbin.workspace = true
+ wasmtime.workspace = true
+diff --git a/crates/cli/src/subcommands/delete.rs b/crates/cli/src/subcommands/delete.rs
+index e0d5c7561..10e49baa2 100644
+--- a/crates/cli/src/subcommands/delete.rs
++++ b/crates/cli/src/subcommands/delete.rs
+@@ -13,17 +13,45 @@ pub fn cli() -> clap::Command {
+         )
+         .arg(common_args::server().help("The nickname, host name or URL of the server hosting the database"))
+         .arg(common_args::yes())
++        .arg(
++            Arg::new("cert")
++                .long("cert")
++                .value_name("FILE")
++                .action(clap::ArgAction::Set)
++                .value_parser(clap::value_parser!(std::path::PathBuf))
++                .help("Path to the server’s self-signed certificate or CA certificate (PEM format) to trust"),
++        )
+         .after_help("Run `spacetime help delete` for more detailed information.\n")
+ }
+ 
++
++
+ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::Error> {
+     let server = args.get_one::<String>("server").map(|s| s.as_ref());
+     let database = args.get_one::<String>("database").unwrap();
+     let force = args.get_flag("force");
+ 
+-    let identity = database_identity(&config, database, server).await?;
++    let cert: Option<&std::path::Path> = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
++
++    pub async fn build_client(cert_path: Option<&std::path::Path>) -> anyhow::Result<reqwest::Client> {
++        let mut client_builder = reqwest::Client::builder();
++
++        if let Some(path) = cert_path {
++            let cert_pem = tokio::fs::read_to_string(path).await
++                .map_err(|e| anyhow::anyhow!("Failed to read certificate file {} err: {}", path.display(), e))?;
++            let cert = reqwest::Certificate::from_pem(cert_pem.as_bytes())
++                .map_err(|e| anyhow::anyhow!("Failed to parse certificate file {} err: {}", path.display(), e))?;
++            client_builder = client_builder.add_root_certificate(cert);
++        }
++
++        client_builder.build()
++            .map_err(|e| anyhow::anyhow!("Failed to build client with cert {:?} err: {}", cert_path, e))
++    }
++
++    let client = build_client(cert).await?;
++    let identity = database_identity(&config, database, server, &client).await?;
+ 
+-    let builder = reqwest::Client::new().delete(format!("{}/v1/database/{}", config.get_host_url(server)?, identity));
++    let builder = client.delete(format!("{}/v1/database/{}", config.get_host_url(server)?, identity));
+     let auth_header = get_auth_header(&mut config, false, server, !force).await?;
+     let builder = add_auth_header_opt(builder, &auth_header);
+     builder.send().await?.error_for_status()?;
+diff --git a/crates/cli/src/subcommands/login.rs b/crates/cli/src/subcommands/login.rs
+index 8e2568b47..71e26ae8d 100644
+--- a/crates/cli/src/subcommands/login.rs
++++ b/crates/cli/src/subcommands/login.rs
+@@ -31,6 +31,14 @@ pub fn cli() -> Command {
+                 .group("login-method")
+                 .help("Bypass the login flow and use a login token directly"),
+         )
++        .arg(
++            Arg::new("cert")
++                .long("cert")
++                .value_name("FILE")
++                .action(clap::ArgAction::Set)
++                .value_parser(clap::value_parser!(std::path::PathBuf))
++                .help("Path to the server’s self-signed certificate or the CA certificate (PEM format) which signed it, to trust the server."),
++        )
+         .about("Manage your login to the SpacetimeDB CLI")
+ }
+ 
+@@ -53,7 +61,35 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+     let spacetimedb_token: Option<&String> = args.get_one("spacetimedb-token");
+     let host: &String = args.get_one("auth-host").unwrap();
+     let host = Url::parse(host)?;
++    // XXX: specifying an url for the server below, instead of a nickname, will cause 'login' to
++    // succeed but any subsequent commands will fail due to using default 127.0.0.1:3000(http)
++    // because the url you used isn't saved in ~/.config/spacetime/cli.toml
++    // see: https://github.com/clockworklabs/SpacetimeDB/issues/2512
+     let server_issued_login: Option<&String> = args.get_one("server");
++    // Check if server_issued_login is a known nickname, and not a URL
++    if let Some(server) = server_issued_login {
++        // Fail if it's a URL
++        if Url::parse(server).is_ok() { //FIXME: this whole diff block is wrong now, fix it, make it a warning at best!
++            anyhow::bail!(
++                "Expected a server nickname (e.g., 'local'), not that URL '{}'. \
++                 See all server nicknames with 'spacetime server list' \
++                 or add it with 'spacetime server add <nickname> <url>' (e.g., 'spacetime server add myservnick http://127.1.2.3:6543').",
++                 server
++            );
++        }
++        // Fail if it's not a known nickname
++        let is_known_nickname = config.server_configs()
++            .iter()
++            .any(|cfg| cfg.nickname.as_ref() == Some(server));
++        if !is_known_nickname {
++            anyhow::bail!(
++                "Unknown server nickname '{}'. \
++                 See all server nicknames with 'spacetime server list' \
++                 Or add it with 'spacetime server add <nickname> <url>' (e.g., 'spacetime server add myservnick http://127.1.2.3:6543').",
++                 server
++            );
++        }
++    }
+ 
+     if let Some(token) = spacetimedb_token {
+         config.set_spacetimedb_token(token.clone());
+@@ -61,11 +97,14 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+         return Ok(());
+     }
+ 
++    let cert: Option<&std::path::Path> = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
+     if let Some(server) = server_issued_login {
+         let host = Url::parse(&config.get_host_url(Some(server))?)?;
+-        spacetimedb_token_cached(&mut config, &host, true).await?;
++        //config.protocol=host.scheme();
++        //eprintln!("!!!!! scheme: '{:#?}', host: '{}', config: '{:#?}'", config.protocol(Some(server)), host, config);
++        spacetimedb_token_cached(&mut config, &host, true, cert).await?;
+     } else {
+-        spacetimedb_token_cached(&mut config, &host, false).await?;
++        spacetimedb_token_cached(&mut config, &host, false, cert).await?;
+     }
+ 
+     Ok(())
+@@ -98,7 +137,7 @@ async fn exec_show(config: Config, args: &ArgMatches) -> Result<(), anyhow::Erro
+     Ok(())
+ }
+ 
+-async fn spacetimedb_token_cached(config: &mut Config, host: &Url, direct_login: bool) -> anyhow::Result<String> {
++async fn spacetimedb_token_cached(config: &mut Config, host: &Url, direct_login: bool, cert: Option<&std::path::Path>) -> anyhow::Result<String> {
+     // Currently, this token does not expire. However, it will at some point in the future. When that happens,
+     // this code will need to happen before any request to a spacetimedb server, rather than at the end of the login flow here.
+     if let Some(token) = config.spacetimedb_token() {
+@@ -106,17 +145,19 @@ async fn spacetimedb_token_cached(config: &mut Config, host: &Url, direct_login:
+         println!("If you want to log out, use spacetime logout.");
+         Ok(token.clone())
+     } else {
+-        spacetimedb_login_force(config, host, direct_login).await
++        spacetimedb_login_force(config, host, direct_login, cert).await
+     }
+ }
+ 
+-pub async fn spacetimedb_login_force(config: &mut Config, host: &Url, direct_login: bool) -> anyhow::Result<String> {
++pub async fn spacetimedb_login_force(config: &mut Config, host: &Url, direct_login: bool, cert: Option<&std::path::Path>) -> anyhow::Result<String> {
+     let token = if direct_login {
+-        let token = spacetimedb_direct_login(host).await?;
++        println!("We will log in directly to your target server.");
++        let token = spacetimedb_direct_login(host, cert).await?;
+         println!("We have logged in directly to your target server.");
+         println!("WARNING: This login will NOT work for any other servers.");
+         token
+     } else {
++        println!("We will log in NON-directly to your target server.");
+         let session_token = web_login_cached(config, host).await?;
+         spacetimedb_login(host, &session_token).await?
+     };
+@@ -271,8 +312,25 @@ struct LocalLoginResponse {
+     pub token: String,
+ }
+ 
+-async fn spacetimedb_direct_login(host: &Url) -> Result<String, anyhow::Error> {
+-    let client = reqwest::Client::new();
++async fn spacetimedb_direct_login(host: &Url, cert: Option<&std::path::Path>) -> Result<String, anyhow::Error> {
++    pub async fn build_client(cert_path: Option<&std::path::Path>) -> anyhow::Result<reqwest::Client> {
++        let mut client_builder = reqwest::Client::builder();
++
++        if let Some(path) = cert_path {
++            let cert_pem = tokio::fs::read_to_string(path).await
++                .map_err(|e| anyhow::anyhow!("Failed to read certificate file {} err: {}", path.display(), e))?;
++            let cert = reqwest::Certificate::from_pem(cert_pem.as_bytes())
++                .map_err(|e| anyhow::anyhow!("Failed to parse certificate file {} err: {}", path.display(), e))?;
++            client_builder = client_builder.add_root_certificate(cert);
++        }
++
++        client_builder.build()
++            .map_err(|e| anyhow::anyhow!("Failed to build client with cert {:?} err: {}", cert_path, e))
++    }
++
++    //let client = reqwest::Client::new();
++    let client = build_client(cert.as_deref()).await?;
++
+     let response: LocalLoginResponse = client
+         .post(host.join("/v1/identity")?)
+         .send()
+diff --git a/crates/cli/src/subcommands/logs.rs b/crates/cli/src/subcommands/logs.rs
+index c92a6f01c..298588b86 100644
+--- a/crates/cli/src/subcommands/logs.rs
++++ b/crates/cli/src/subcommands/logs.rs
+@@ -48,6 +48,14 @@ pub fn cli() -> clap::Command {
+                 .help("Output format for the logs")
+         )
+         .arg(common_args::yes())
++        .arg(
++            Arg::new("cert")
++            .long("cert")
++            .value_name("FILE")
++            .action(clap::ArgAction::Set)
++            .value_parser(clap::value_parser!(std::path::PathBuf))
++            .help("Path to the server’s self-signed certificate or CA certificate (PEM format) to trust"),
++        )
+         .after_help("Run `spacetime help logs` for more detailed information.\n")
+ }
+ 
+@@ -120,7 +128,25 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+ 
+     let auth_header = get_auth_header(&mut config, false, server, !force).await?;
+ 
+-    let database_identity = database_identity(&config, database, server).await?;
++    let cert: Option<&std::path::Path> = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
++
++    pub async fn build_client(cert_path: Option<&std::path::Path>) -> anyhow::Result<reqwest::Client> {
++        let mut client_builder = reqwest::Client::builder();
++
++        if let Some(path) = cert_path {
++            let cert_pem = tokio::fs::read_to_string(path).await
++                .map_err(|e| anyhow::anyhow!("Failed to read certificate file {} err: {}", path.display(), e))?;
++            let cert = reqwest::Certificate::from_pem(cert_pem.as_bytes())
++                .map_err(|e| anyhow::anyhow!("Failed to parse certificate file {} err: {}", path.display(), e))?;
++            client_builder = client_builder.add_root_certificate(cert);
++        }
++
++        client_builder.build()
++            .map_err(|e| anyhow::anyhow!("Failed to build client with cert {:?} err: {}", cert_path, e))
++    }
++
++    let client = build_client(cert).await?;
++    let database_identity = database_identity(&config, database, server, &client).await?;
+ 
+     if follow && num_lines.is_none() {
+         // We typically don't want logs from the very beginning if we're also following.
+@@ -130,7 +156,7 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+ 
+     let host_url = config.get_host_url(server)?;
+ 
+-    let builder = reqwest::Client::new().get(format!("{}/v1/database/{}/logs", host_url, database_identity));
++    let builder = client.get(format!("{}/v1/database/{}/logs", host_url, database_identity));
+     let builder = add_auth_header_opt(builder, &auth_header);
+     let mut res = builder.query(&query_parms).send().await?;
+     let status = res.status();
+diff --git a/crates/cli/src/subcommands/publish.rs b/crates/cli/src/subcommands/publish.rs
+index 65cdf343c..80a8068fe 100644
+--- a/crates/cli/src/subcommands/publish.rs
++++ b/crates/cli/src/subcommands/publish.rs
+@@ -63,6 +63,14 @@ i.e. only lowercase ASCII letters and numbers, separated by dashes."),
+         .arg(common_args::server()
+                 .help("The nickname, domain name or URL of the server to host the database."),
+         )
++        .arg(
++            Arg::new("cert")
++                .long("cert")
++                .value_name("FILE")
++                .action(Set)
++                .value_parser(clap::value_parser!(std::path::PathBuf))
++                .help("Path to the server’s self-signed certificate or the CA certificate (PEM format) which signed it, to trust the server."),
++        )
+         .arg(
+             common_args::yes()
+         )
+@@ -79,6 +87,9 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+     let wasm_file = args.get_one::<PathBuf>("wasm_file");
+     let database_host = config.get_host_url(server)?;
+     let build_options = args.get_one::<String>("build_options").unwrap();
++    //let cert_path = args.get_one::<String>("cert").map(PathBuf::from);
++    let cert: Option<&std::path::Path> = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
++
+ 
+     // If the user didn't specify an identity and we didn't specify an anonymous identity, then
+     // we want to use the default identity
+@@ -86,7 +97,25 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+     //  easily create a new identity with an email
+     let auth_header = get_auth_header(&mut config, anon_identity, server, !force).await?;
+ 
+-    let client = reqwest::Client::new();
++    //use reqwest::Client;
++    //use std::path::Path;
++    pub async fn build_client(cert_path: Option<&std::path::Path>) -> anyhow::Result<reqwest::Client> {
++        let mut client_builder = reqwest::Client::builder();
++
++        if let Some(path) = cert_path {
++            let cert_pem = tokio::fs::read_to_string(path).await
++                .map_err(|e| anyhow::anyhow!("Failed to read certificate file {} err: {}", path.display(), e))?;
++            let cert = reqwest::Certificate::from_pem(cert_pem.as_bytes())
++                .map_err(|e| anyhow::anyhow!("Failed to parse certificate file {} err: {}", path.display(), e))?;
++            client_builder = client_builder.add_root_certificate(cert);
++        }
++
++        client_builder.build()
++            .map_err(|e| anyhow::anyhow!("Failed to build client with cert {:?} err: {}", cert_path, e))
++    }
++
++    //let client = reqwest::Client::new();
++    let client = build_client(cert).await?;
+ 
+     // If a domain or identity was provided, we should locally make sure it looks correct and
+     let mut builder = if let Some(name_or_identity) = name_or_identity {
+@@ -119,7 +148,17 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+         let url = Url::parse(&database_host)?;
+         url.host_str().unwrap_or("<default>").to_string()
+     };
+-    if server_address != "localhost" && server_address != "127.0.0.1" {
++
++    use std::net::IpAddr;
++    fn is_local_address(address: &str) -> bool {
++        if let Ok(IpAddr::V4(ipv4)) = address.parse::<IpAddr>() {
++            ipv4.is_loopback() // Check if the address is a loopback address
++        } else {
++            address.eq_ignore_ascii_case("localhost") // or 'false'
++        }
++    }
++    //if server_address != "localhost" && server_address != "127.0.0.1" {
++    if !is_local_address(&server_address) {
+         println!("You are about to publish to a non-local server: {}", server_address);
+         if !y_or_n(force, "Are you sure you want to proceed?")? {
+             println!("Aborting");
+diff --git a/crates/cli/src/subcommands/sql.rs b/crates/cli/src/subcommands/sql.rs
+index 7071cc18e..2ba17ef7c 100644
+--- a/crates/cli/src/subcommands/sql.rs
++++ b/crates/cli/src/subcommands/sql.rs
+@@ -38,6 +38,14 @@ pub fn cli() -> clap::Command {
+         .arg(common_args::anonymous())
+         .arg(common_args::server().help("The nickname, host name or URL of the server hosting the database"))
+         .arg(common_args::yes())
++        .arg(
++            Arg::new("cert")
++            .long("cert")
++            .value_name("FILE")
++            .action(clap::ArgAction::Set)
++            .value_parser(clap::value_parser!(std::path::PathBuf))
++            .help("Path to the server’s self-signed certificate or CA certificate (PEM format) to trust"),
++        )
+ }
+ 
+ pub(crate) async fn parse_req(mut config: Config, args: &ArgMatches) -> Result<Connection, anyhow::Error> {
+@@ -46,10 +54,11 @@ pub(crate) async fn parse_req(mut config: Config, args: &ArgMatches) -> Result<C
+     let database_name_or_identity = args.get_one::<String>("database").unwrap();
+     let anon_identity = args.get_flag("anon_identity");
+ 
++    let client = reqwest::Client::new();//TODO: see where this is for 'spacetime sql'
+     Ok(Connection {
+         host: config.get_host_url(server)?,
+         auth_header: get_auth_header(&mut config, anon_identity, server, !force).await?,
+-        database_identity: database_identity(&config, database_name_or_identity, server).await?,
++        database_identity: database_identity(&config, database_name_or_identity, server, &client).await?,
+         database: database_name_or_identity.to_string(),
+     })
+ }
+diff --git a/crates/cli/src/util.rs b/crates/cli/src/util.rs
+index 491c71b7a..4fa0a900e 100644
+--- a/crates/cli/src/util.rs
++++ b/crates/cli/src/util.rs
+@@ -17,11 +17,12 @@ pub async fn database_identity(
+     config: &Config,
+     name_or_identity: &str,
+     server: Option<&str>,
++    client: &reqwest::Client,
+ ) -> Result<Identity, anyhow::Error> {
+     if let Ok(identity) = Identity::from_hex(name_or_identity) {
+         return Ok(identity);
+     }
+-    spacetime_dns(config, name_or_identity, server)
++    spacetime_dns(config, name_or_identity, server, client)
+         .await?
+         .with_context(|| format!("the dns resolution of `{name_or_identity}` failed."))
+ }
+@@ -111,8 +112,9 @@ pub async fn spacetime_dns(
+     config: &Config,
+     domain: &str,
+     server: Option<&str>,
++    client: &reqwest::Client,
+ ) -> Result<Option<Identity>, anyhow::Error> {
+-    let client = reqwest::Client::new();
++    //let client = reqwest::Client::new();
+     let url = format!("{}/v1/database/{}/identity", config.get_host_url(server)?, domain);
+     let Some(res) = client.get(url).send().await?.found() else {
+         return Ok(None);
+@@ -314,9 +316,9 @@ pub async fn get_login_token_or_log_in(
+ 
+     if full_login {
+         let host = Url::parse(DEFAULT_AUTH_HOST)?;
+-        spacetimedb_login_force(config, &host, false).await
++        spacetimedb_login_force(config, &host, false, None/*TODO*/).await
+     } else {
+         let host = Url::parse(&config.get_host_url(target_server)?)?;
+-        spacetimedb_login_force(config, &host, true).await
++        spacetimedb_login_force(config, &host, true, None/*TODO*/).await
+     }
+ }
+diff --git a/crates/client-api/src/routes/subscribe.rs b/crates/client-api/src/routes/subscribe.rs
+index af2dd264d..e89ac5aba 100644
+--- a/crates/client-api/src/routes/subscribe.rs
++++ b/crates/client-api/src/routes/subscribe.rs
+@@ -121,12 +121,10 @@ where
+         name: ctx.client_actor_index().next_client_name(),
+     };
+ 
+-    let ws_config = WebSocketConfig {
+-        max_message_size: Some(0x2000000),
+-        max_frame_size: None,
+-        accept_unmasked_frames: false,
+-        ..Default::default()
+-    };
++    let ws_config = WebSocketConfig::default()
++        .max_message_size(Some(0x2000000))
++        .max_frame_size(None)
++        .accept_unmasked_frames(false);
+ 
+     tokio::spawn(async move {
+         let ws = match ws_upgrade.upgrade(ws_config).await {
+@@ -335,7 +333,7 @@ async fn ws_client_actor_inner(
+                 if mem::take(&mut got_pong) {
+                     // Send a ping message while continuing to poll the `handle_queue`,
+                     // to avoid deadlocks or delays due to enqueued futures holding resources.
+-                    if let Err(e) = also_poll(ws.send(WsMessage::Ping(Vec::new())), make_progress(&mut current_message)).await {
++                    if let Err(e) = also_poll(ws.send(WsMessage::Ping(Vec::new().into())), make_progress(&mut current_message)).await {
+                         log::warn!("error sending ping: {e:#}");
+                     }
+                     continue;
+@@ -413,15 +411,15 @@ enum ClientMessage {
+     Message(DataMessage),
+     Ping(Vec<u8>),
+     Pong(Vec<u8>),
+-    Close(Option<CloseFrame<'static>>),
++    Close(Option<CloseFrame<>>),
+ }
+ impl ClientMessage {
+     fn from_message(msg: WsMessage) -> Self {
+         match msg {
+-            WsMessage::Text(s) => Self::Message(DataMessage::Text(s)),
+-            WsMessage::Binary(b) => Self::Message(DataMessage::Binary(b)),
+-            WsMessage::Ping(b) => Self::Ping(b),
+-            WsMessage::Pong(b) => Self::Pong(b),
++            WsMessage::Text(s) => Self::Message(DataMessage::Text(s.to_string())),
++            WsMessage::Binary(b) => Self::Message(DataMessage::Binary(b.to_vec())),
++            WsMessage::Ping(b) => Self::Ping(b.to_vec()),
++            WsMessage::Pong(b) => Self::Pong(b.to_vec()),
+             WsMessage::Close(frame) => Self::Close(frame),
+             // WebSocket::read_message() never returns a raw Message::Frame
+             WsMessage::Frame(_) => unreachable!(),
+@@ -431,7 +429,7 @@ impl ClientMessage {
+ 
+ fn datamsg_to_wsmsg(msg: DataMessage) -> WsMessage {
+     match msg {
+-        DataMessage::Text(text) => WsMessage::Text(text),
+-        DataMessage::Binary(bin) => WsMessage::Binary(bin),
++        DataMessage::Text(text) => WsMessage::Text(text.into()),
++        DataMessage::Binary(bin) => WsMessage::Binary(bin.into()),
+     }
+ }
+diff --git a/crates/core/Cargo.toml b/crates/core/Cargo.toml
+index a783f9fc7..fb6a4f567 100644
+--- a/crates/core/Cargo.toml
++++ b/crates/core/Cargo.toml
+@@ -65,13 +65,14 @@ lazy_static.workspace = true
+ log.workspace = true
+ memchr.workspace = true
+ once_cell.workspace = true
+-openssl.workspace = true
+ parking_lot.workspace = true
+ paste.workspace = true
+ pin-project-lite.workspace = true
+ prometheus.workspace = true
+ rayon.workspace = true
+ rayon-core.workspace = true
++rcgen.workspace = true
++p256.workspace = true
+ regex.workspace = true
+ rustc-demangle.workspace = true
+ rustc-hash.workspace = true
+diff --git a/crates/core/src/auth/mod.rs b/crates/core/src/auth/mod.rs
+index 73f393aab..4a2d798b4 100644
+--- a/crates/core/src/auth/mod.rs
++++ b/crates/core/src/auth/mod.rs
+@@ -1,7 +1,5 @@
+ use jsonwebtoken::{DecodingKey, EncodingKey};
+-use openssl::ec::{EcGroup, EcKey};
+-use openssl::nid::Nid;
+-use openssl::pkey::PKey;
++use rcgen::KeyPair;
+ use spacetimedb_paths::cli::{PrivKeyPath, PubKeyPath};
+ 
+ use crate::config::CertificateAuthority;
+@@ -88,20 +86,14 @@ impl EcKeyPair {
+     }
+ 
+     pub fn generate() -> anyhow::Result<Self> {
+-        // Create a new EC group from a named curve.
+-        let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1)?;
+-
+-        // Create a new EC key with the specified group.
+-        let eckey = EcKey::generate(&group)?;
+-
+-        // Create a new PKey from the EC key.
+-        let pkey = PKey::from_ec_key(eckey.clone())?;
++        // Generate a new key pair for the P-256 curve (equivalent to `Nid::X9_62_PRIME256V1`).
++        let key_pair = KeyPair::generate_for(&rcgen::PKCS_ECDSA_P256_SHA256)?;
+ 
+         // Get the private key in PKCS#8 PEM format & write it.
+-        let private_key_bytes = pkey.private_key_to_pem_pkcs8()?;
++        let public_key_bytes = key_pair.public_key_pem().into_bytes();
+ 
+         // Get the public key in PEM format & write it.
+-        let public_key_bytes = eckey.public_key_to_pem()?;
++        let private_key_bytes = key_pair.serialize_pem().into_bytes();
+ 
+         Ok(Self {
+             public_key_bytes,
+diff --git a/crates/core/src/auth/token_validation.rs b/crates/core/src/auth/token_validation.rs
+index 27b6a786e..74f7e34da 100644
+--- a/crates/core/src/auth/token_validation.rs
++++ b/crates/core/src/auth/token_validation.rs
+@@ -333,7 +333,6 @@ mod tests {
+     };
+     use crate::auth::JwtKeys;
+     use base64::Engine;
+-    use openssl::ec::{EcGroup, EcKey};
+     use serde_json;
+     use spacetimedb_lib::Identity;
+ 
+@@ -480,6 +479,8 @@ mod tests {
+     use axum::routing::get;
+     use axum::Json;
+     use axum::Router;
++    use p256::elliptic_curve::sec1::ToEncodedPoint;
++    use p256::pkcs8::DecodePublicKey;
+     use tokio::net::TcpListener;
+     use tokio::sync::oneshot;
+ 
+@@ -666,51 +667,36 @@ mod tests {
+ 
+     // Extract the x and y coordinates from a public key and return a JWK for a single key.
+     fn to_jwk_json(jk: &JwtKeys) -> anyhow::Result<serde_json::Value> {
+-        let eck = EcKey::public_key_from_pem(&jk.public_pem)?;
+-
+-        let group = EcGroup::from_curve_name(openssl::nid::Nid::X9_62_PRIME256V1)?;
+-        let mut ctx = openssl::bn::BigNumContext::new()?;
+-
+-        // Get the x and y coordinates.
+-        let mut x = openssl::bn::BigNum::new()?;
+-        // let mut x = openssl::bn::BigNumRef
+-        let mut y = openssl::bn::BigNum::new()?;
+-        eck.public_key().affine_coordinates(&group, &mut x, &mut y, &mut ctx)?;
+-
+-        let x_bytes = x.to_vec();
+-        let y_bytes = y.to_vec();
+-
+-        let x_padded = if x_bytes.len() < 32 {
+-            let mut padded = vec![0u8; 32];
+-            padded[32 - x_bytes.len()..].copy_from_slice(&x_bytes);
+-            padded
+-        } else {
+-            x_bytes
++        // Parse the public key from PEM.
++        let public_key = p256::PublicKey::from_public_key_pem(std::str::from_utf8(&jk.public_pem)?)?;
++        // Convert the public key to an uncompressed SEC1-encoded point.
++        let encoded_point = public_key.to_encoded_point(false); // false for uncompressed
++        let coordinates = encoded_point.coordinates();
++
++        // Extract x and y coordinates.
++        let (x_bytes, y_bytes) = match coordinates {
++            p256::elliptic_curve::sec1::Coordinates::Uncompressed { x, y } => (x.as_slice(), y.as_slice()),
++            _ => return Err(anyhow::anyhow!("Invalid coordinates")),
+         };
+ 
+-        let y_padded = if y_bytes.len() < 32 {
+-            let mut padded = vec![0u8; 32];
+-            padded[32 - y_bytes.len()..].copy_from_slice(&y_bytes);
+-            padded
+-        } else {
+-            y_bytes
+-        };
+-        let x_b64 = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(x_padded);
+-        let y_b64 = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(y_padded);
+-
+-        let mut jwks = serde_json::json!(
+-            {
+-                "kty": "EC",
+-                "crv": "P-256",
+-                "use": "sig",
+-                "alg": "ES256",
+-                "x": x_b64,
+-                "y": y_b64
+-            }
+-        );
++        // Base64-url encode x and y coordinates.
++        let x_b64 = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(x_bytes);
++        let y_b64 = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(y_bytes);
++
++        // Construct the JWK JSON.
++        let mut jwks = serde_json::json!({
++            "kty": "EC",
++            "crv": "P-256",
++            "use": "sig",
++            "alg": "ES256",
++            "x": x_b64,
++            "y": y_b64
++        });
++
+         if let Some(kid) = &jk.kid {
+             jwks["kid"] = kid.to_string().into();
+         }
++
+         Ok(jwks)
+     }
+ }
+diff --git a/crates/sdk/Cargo.toml b/crates/sdk/Cargo.toml
+index 9daa2a983..739b7ccf0 100644
+--- a/crates/sdk/Cargo.toml
++++ b/crates/sdk/Cargo.toml
+@@ -29,6 +29,10 @@ prometheus.workspace = true
+ rand.workspace = true
+ tokio.workspace = true
+ tokio-tungstenite.workspace = true
++rustls = "0.23"
++rustls-pemfile = "2.2.0"
++#tokio-rustls="0.24"
++native-tls = "0.2"  # Explicitly add for Connector::NativeTls
+ 
+ [dev-dependencies]
+ # for quickstart-chat and cursive-chat examples
+diff --git a/crates/sdk/examples/quickstart-chat/main.rs b/crates/sdk/examples/quickstart-chat/main.rs
+index e04ff9cb3..f686791ae 100644
+--- a/crates/sdk/examples/quickstart-chat/main.rs
++++ b/crates/sdk/examples/quickstart-chat/main.rs
+@@ -5,11 +5,20 @@ use module_bindings::*;
+ 
+ use spacetimedb_sdk::{credentials, DbContext, Error, Event, Identity, Status, Table, TableWithPrimaryKey};
+ 
++use std::path::PathBuf;
++
++
+ // ## Define the main function
+ 
+ fn main() {
+-    // Connect to the database
+-    let ctx = connect_to_db();
++    // ### Parse command-line arguments for --cert into a PathBuf
++    let args: Vec<String> = std::env::args().collect();
++    let cert_path: Option<PathBuf> = args.iter()
++        .position(|arg| arg == "--cert")
++        .map(|i| args.get(i + 1).expect("Missing certificate path after --cert"))
++        .map(|s| PathBuf::from(s));
++    // Connect to the database with optional cert
++    let ctx = connect_to_db(cert_path);
+ 
+     // Register callbacks to run in response to database events.
+     register_callbacks(&ctx);
+@@ -26,15 +35,21 @@ fn main() {
+ 
+ // ## Connect to the database
+ 
+-/// The URI of the SpacetimeDB instance hosting our chat module.
+-const HOST: &str = "http://localhost:3000";
++/// The host and port, without scheme, of the SpacetimeDB instance hosting our chat module.
++const HOST_PORT: &str = "localhost:3000";
++//const HOST_PORT: &str = "127.1.2.3:6543";
+ 
+ /// The module name we chose when we published our module.
+ const DB_NAME: &str = "quickstart-chat";
+ 
+ /// Load credentials from a file and connect to the database.
+-fn connect_to_db() -> DbConnection {
+-    DbConnection::builder()
++fn connect_to_db(cert_path: Option<PathBuf>) -> DbConnection {
++    // ### Construct URI with scheme based on cert presence
++    let scheme = if cert_path.is_some() { "https" } else { "http" };
++    let uri = format!("{}://{}", scheme, HOST_PORT);
++
++//    let mut builder=
++        DbConnection::builder()
+         // Register our `on_connect` callback, which will save our auth token.
+         .on_connect(on_connected)
+         // Register our `on_connect_error` callback, which will print a message, then exit the process.
+@@ -48,7 +63,17 @@ fn connect_to_db() -> DbConnection {
+         // Set the database name we chose when we called `spacetime publish`.
+         .with_module_name(DB_NAME)
+         // Set the URI of the SpacetimeDB host that's running our database.
+-        .with_uri(HOST)
++        .with_uri(&uri)
++//;    // ### Add trusted cert if provided
++//    if let Some(cert_path) = cert_path {
++//    //XXX: we don't wanna do this(that's why it's acception Option instead):
++//        builder = builder.with_trusted_cert(cert_path);
++//    }
++//     // Finalize configuration and connect!
++//     builder.build()
++//         .expect("Failed to connect")
++        // ### Add trusted cert if provided
++        .with_trusted_cert(cert_path)
+         // Finalize configuration and connect!
+         .build()
+         .expect("Failed to connect")
+diff --git a/crates/sdk/src/db_connection.rs b/crates/sdk/src/db_connection.rs
+index e1e4133e3..9c6a300b7 100644
+--- a/crates/sdk/src/db_connection.rs
++++ b/crates/sdk/src/db_connection.rs
+@@ -748,6 +748,8 @@ pub struct DbConnectionBuilder<M: SpacetimeModule> {
+     on_disconnect: Option<OnDisconnectCallback<M>>,
+ 
+     params: WsParams,
++
++    trusted_cert: Option<std::path::PathBuf>,
+ }
+ 
+ /// This process's global connection ID, which will be attacked to all connections it makes.
+@@ -794,6 +796,7 @@ impl<M: SpacetimeModule> DbConnectionBuilder<M> {
+             on_connect_error: None,
+             on_disconnect: None,
+             params: <_>::default(),
++            trusted_cert: None,
+         }
+     }
+ 
+@@ -841,6 +844,7 @@ but you must call one of them, or else the connection will never progress.
+                 self.token.as_deref(),
+                 get_connection_id(),
+                 self.params,
++                self.trusted_cert.as_ref(),
+             ))
+         })
+         .map_err(|source| crate::Error::FailedToConnect {
+@@ -892,6 +896,15 @@ but you must call one of them, or else the connection will never progress.
+         self
+     }
+ 
++//    pub fn with_trusted_cert(mut self, cert: impl Into<std::path::PathBuf>) -> Self {
++//        self.trusted_cert = Some(cert.into());
++//        self
++//    }
++    pub fn with_trusted_cert(mut self, cert: Option<impl Into<std::path::PathBuf>>) -> Self {
++        self.trusted_cert = cert.map(|c| c.into());
++        self
++    }
++
+     /// Set the name or identity of the remote module.
+     pub fn with_module_name(mut self, name_or_identity: impl Into<String>) -> Self {
+         self.module_name = Some(name_or_identity.into());
+diff --git a/crates/sdk/src/websocket.rs b/crates/sdk/src/websocket.rs
+index 7a4119af0..e80b5687f 100644
+--- a/crates/sdk/src/websocket.rs
++++ b/crates/sdk/src/websocket.rs
+@@ -21,10 +21,11 @@ use tokio::task::JoinHandle;
+ use tokio::time::Instant;
+ use tokio::{net::TcpStream, runtime};
+ use tokio_tungstenite::{
+-    connect_async_with_config,
++    //connect_async_with_config,
+     tungstenite::client::IntoClientRequest,
+     tungstenite::protocol::{Message as WebSocketMessage, WebSocketConfig},
+-    MaybeTlsStream, WebSocketStream,
++    MaybeTlsStream,
++    WebSocketStream,
+ };
+ 
+ use crate::metrics::CLIENT_METRICS;
+@@ -207,23 +208,83 @@ impl WsConnection {
+         token: Option<&str>,
+         connection_id: ConnectionId,
+         params: WsParams,
++        trusted_cert: Option<&std::path::PathBuf>, // Changed to borrow PathBuf
+     ) -> Result<Self, WsError> {
+         let req = make_request(host, db_name, token, connection_id, params)?;
+ 
+         // Grab the URI for error-reporting.
+         let uri = req.uri().clone();
+ 
+-        let (sock, _): (WebSocketStream<MaybeTlsStream<TcpStream>>, _) = connect_async_with_config(
++        let host = uri.clone(); //shadow, and it's thus wss:// not https://
++        use native_tls::Certificate;
++        use native_tls::TlsConnector;
++        use std::sync::Arc;
++        use tokio::net::TcpStream;
++        use tokio_tungstenite::{client_async_tls_with_config, Connector, MaybeTlsStream, WebSocketStream};
++
++        let host_str = host.host().ok_or(WsError::UriError(UriError::InvalidUri {
++            source: Arc::new("No host in URI".parse::<Uri>().unwrap_err().into()),
++        }))?;
++        let port = host.port_u16().ok_or(WsError::UriError(UriError::InvalidUri {
++            source: Arc::new("No port specified in URI".parse::<Uri>().unwrap_err().into()),
++        }))?;
++        if port == 0 {
++            //|| port > 65535 {
++            return Err(WsError::UriError(UriError::InvalidUri {
++                source: Arc::new(format!("Invalid port: {}", port).parse::<Uri>().unwrap_err().into()),
++            }));
++        }
++
++        let tcp_stream = TcpStream::connect((host_str, port))
++            .await
++            .map_err(|source| WsError::Tungstenite {
++                uri: uri.clone(),
++                source: Arc::new(tokio_tungstenite::tungstenite::Error::Io(source)),
++            })?;
++
++        let connector = if host.scheme_str() == Some("wss") {
++            let mut builder = TlsConnector::builder();
++            if let Some(cert_path) = trusted_cert {
++                let cert_pem = std::fs::read_to_string(cert_path).map_err(|e| WsError::Tungstenite {
++                    uri: uri.clone(),
++                    source: Arc::new(tokio_tungstenite::tungstenite::Error::Io(std::io::Error::new(
++                        e.kind(),
++                        format!("Failed to read cert file '{}': {}", cert_path.display(), e),
++                    ))),
++                })?;
++                let cert = Certificate::from_pem(cert_pem.as_bytes()).map_err(|e| WsError::Tungstenite {
++                    uri: uri.clone(),
++                    source: Arc::new(tokio_tungstenite::tungstenite::Error::Io(std::io::Error::new(
++                        std::io::ErrorKind::InvalidData,
++                        format!("Failed to parse PEM cert file '{}': {}", cert_path.display(), e),
++                    ))),
++                })?;
++                builder.add_root_certificate(cert);
++            } else {
++                println!("Didn't add trusted cert file {:?}", trusted_cert);
++            }
++            let tls_connector = builder.build().map_err(|e| WsError::Tungstenite {
++                uri: uri.clone(),
++                source: Arc::new(tokio_tungstenite::tungstenite::Error::Io(std::io::Error::new(
++                    std::io::ErrorKind::Other,
++                    e,
++                ))),
++            })?;
++            Some(Connector::NativeTls(tls_connector))
++        } else {
++            //This is probably just ws:// ie. from http:// aka plaintext non-TLS
++            //println!("!!! Unexpected non-wss:// scheme, is: {}", uri);
++            None
++        };
++
++        let (sock, _): (WebSocketStream<MaybeTlsStream<TcpStream>>, _) = client_async_tls_with_config(
+             req,
++            tcp_stream,
+             // TODO(kim): In order to be able to replicate module WASM blobs,
+             // `cloud-next` cannot have message / frame size limits. That's
+             // obviously a bad default for all other clients, though.
+-            Some(WebSocketConfig {
+-                max_frame_size: None,
+-                max_message_size: None,
+-                ..WebSocketConfig::default()
+-            }),
+-            false,
++            Some(WebSocketConfig::default().max_frame_size(None).max_message_size(None)),
++            connector,
+         )
+         .await
+         .map_err(|source| WsError::Tungstenite {
+@@ -235,7 +296,7 @@ impl WsConnection {
+             connection_id,
+             sock,
+         })
+-    }
++    } //connect(
+ 
+     pub(crate) fn parse_response(bytes: &[u8]) -> Result<ServerMessage<BsatnFormat>, WsError> {
+         let (compression, bytes) = bytes.split_first().ok_or(WsError::EmptyMessage)?;
+@@ -265,7 +326,7 @@ impl WsConnection {
+     }
+ 
+     pub(crate) fn encode_message(msg: ClientMessage<Bytes>) -> WebSocketMessage {
+-        WebSocketMessage::Binary(bsatn::to_vec(&msg).unwrap())
++        WebSocketMessage::Binary(bsatn::to_vec(&msg).unwrap().into())
+     }
+ 
+     fn maybe_log_error<T, U: std::fmt::Debug>(cause: &str, res: std::result::Result<T, U>) {
+@@ -386,7 +447,7 @@ impl WsConnection {
+                         }
+ 
+                         log::trace!("sending client ping");
+-                        let ping = WebSocketMessage::Ping(vec![]);
++                        let ping = WebSocketMessage::Ping(vec![].into());
+                         if let Err(e) = self.sock.send(ping).await {
+                             log::warn!("Error sending ping: {e:?}");
+                             break;
+diff --git a/crates/standalone/Cargo.toml b/crates/standalone/Cargo.toml
+index 209f2707a..44dde5484 100644
+--- a/crates/standalone/Cargo.toml
++++ b/crates/standalone/Cargo.toml
+@@ -25,13 +25,21 @@ spacetimedb-paths.workspace = true
+ anyhow.workspace = true
+ async-trait.workspace = true
+ axum.workspace = true
++
++# Add this for TLS support
++#axum-server = "0.6"  # Compatible with axum 0.7.9
++#axum-server = "0.7"  # Compatible with axum 0.7.9
++axum-server = { version = "0.7.2", features = ["tls-rustls"] }
++
++ring = "0.17"  # explicitly add this for the CryptoProvider, even tho it's included transitively.
++rustls= "0.23"
++
+ clap = { workspace = true, features = ["derive", "string"] }
+ dirs.workspace = true
+ futures.workspace = true
+ hostname.workspace = true
+ http.workspace = true
+ log.workspace = true
+-openssl.workspace = true
+ prometheus.workspace = true
+ scopeguard.workspace = true
+ serde_json.workspace = true
+diff --git a/crates/standalone/src/subcommands/start.rs b/crates/standalone/src/subcommands/start.rs
+index 5f6f705d7..06855ce21 100644
+--- a/crates/standalone/src/subcommands/start.rs
++++ b/crates/standalone/src/subcommands/start.rs
+@@ -13,7 +13,7 @@ use spacetimedb_client_api::routes::database::DatabaseRoutes;
+ use spacetimedb_client_api::routes::router;
+ use spacetimedb_paths::cli::{PrivKeyPath, PubKeyPath};
+ use spacetimedb_paths::server::ServerDataDir;
+-use tokio::net::TcpListener;
++//use tokio::net::TcpListener;
+ 
+ pub fn cli() -> clap::Command {
+     clap::Command::new("start")
+@@ -67,6 +67,9 @@ pub fn cli() -> clap::Command {
+         .arg(Arg::new("in_memory").long("in-memory").action(SetTrue).help(
+             "If specified the database will run entirely in memory. After the process exits all data will be lost.",
+         ))
++        .arg(Arg::new("ssl").long("ssl").alias("tls").alias("https").alias("secure").action(clap::ArgAction::SetTrue).help("enables the standalone server to listen in SSL mode, ie. use https instead of http to connect to it. Aliases --tls, --ssl, --secure, or --https."))
++        .arg(Arg::new("cert").long("cert").requires("ssl").value_name("FILE").help("--cert cert.pem: The server sends this to clients during the TLS handshake. ie. server's public key, which if it's self-signed then this is the file that you pass to clients via --cert when talking to the server from a client(or the cli), or if signed by a local CA then pass that CA's pub cert to your clients instead, in order to can trust this server from a client connection. Otherwise, you don't have to pass anything to clients if this cert was signed by a public CA like Let's Encrypt."))
++        .arg(Arg::new("key").long("key").requires("ssl").value_name("FILE").help("--key key.pem: The server keeps this private to decrypt and sign responses. ie. the server's private key"))
+     // .after_help("Run `spacetime help start` for more detailed information.")
+ }
+ 
+@@ -90,7 +93,7 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
+     };
+     let db_config = Config { storage };
+ 
+-    banner();
++    //banner();
+     let exe_name = std::env::current_exe()?;
+     let exe_name = exe_name.file_name().unwrap().to_str().unwrap();
+     println!("{} version: {}", exe_name, env!("CARGO_PKG_VERSION"));
+@@ -142,13 +145,39 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
+     let extra = axum::Router::new().nest("/health", spacetimedb_client_api::routes::health::router());
+     let service = router(&ctx, db_routes, extra).with_state(ctx);
+ 
+-    let tcp = TcpListener::bind(listen_addr).await?;
+-    socket2::SockRef::from(&tcp).set_nodelay(true)?;
+-    log::debug!("Starting SpacetimeDB listening on {}", tcp.local_addr().unwrap());
+-    axum::serve(tcp, service).await?;
++//    let tcp = TcpListener::bind(listen_addr).await?;
++//    socket2::SockRef::from(&tcp).set_nodelay(true)?;
++//    log::debug!("Starting SpacetimeDB listening on {}", tcp.local_addr().unwrap());
++//    axum::serve(tcp, service).await?;
++    use std::net::SocketAddr;
++    let addr: SocketAddr = listen_addr.parse()?;
++    if args.get_flag("ssl") {
++        let cert_path = args.get_one::<String>("cert").context("Missing --cert for SSL")?;
++        let key_path = args.get_one::<String>("key").context("Missing --key for SSL")?;
++        // Install the default CryptoProvider at the start of the function
++        // This only needs to happen once per process, so it's safe to call here
++        use rustls::crypto::ring::default_provider;  // Add this
++        use rustls::crypto::CryptoProvider;          // Add this
++        CryptoProvider::install_default(default_provider())
++            .expect("Failed to install default CryptoProvider");
++
++        use axum_server::tls_rustls::RustlsConfig;
++        let tls_config = RustlsConfig::from_pem_file(cert_path, key_path).await?;
++        log::debug!("Starting SpacetimeDB with SSL listening on {}", addr);
++        axum_server::bind_rustls(addr, tls_config)
++            .serve(service.into_make_service())
++            .await?;
++    } else {
++        log::debug!("Starting SpacetimeDB without any ssl (so it's plaintext) listening on {}", addr);
++        axum_server::bind(addr)
++            .serve(service.into_make_service())
++            .await?;
++    }
++
+     Ok(())
+ }
+ 
++#[allow(dead_code)]
+ fn banner() {
+     println!(
+         r#"
+diff --git a/crates/update/Cargo.toml b/crates/update/Cargo.toml
+index 130d6ce4a..86ce02160 100644
+--- a/crates/update/Cargo.toml
++++ b/crates/update/Cargo.toml
+@@ -24,7 +24,7 @@ tar.workspace = true
+ tempfile.workspace = true
+ tokio.workspace = true
+ toml.workspace = true
+-tracing = { workspace = true, features = ["release_max_level_off"] }
++tracing = { workspace = true } #, features = ["release_max_level_off"] }
+ zip = "2"
+ 
+ [target.'cfg(windows)'.dependencies]
