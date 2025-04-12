@@ -1,5 +1,4 @@
 * this is work in progress, even though it works so far (rust client, some cli commands)
-* but some things are wrong curently the 'login' not accepting server URLs has to be removed.
 * contains PR1700 already (I will try to get it removed, most likely)
 * and another one for max level(made up)
 * didn't include Cargo.lock but it's definitely 'cargo update'-ed
@@ -139,7 +138,7 @@ index e0d5c7561..10e49baa2 100644
      let builder = add_auth_header_opt(builder, &auth_header);
      builder.send().await?.error_for_status()?;
 diff --git a/crates/cli/src/subcommands/login.rs b/crates/cli/src/subcommands/login.rs
-index 8e2568b47..71e26ae8d 100644
+index 8e2568b47..db5944df1 100644
 --- a/crates/cli/src/subcommands/login.rs
 +++ b/crates/cli/src/subcommands/login.rs
 @@ -31,6 +31,14 @@ pub fn cli() -> Command {
@@ -157,43 +156,26 @@ index 8e2568b47..71e26ae8d 100644
          .about("Manage your login to the SpacetimeDB CLI")
  }
  
-@@ -53,7 +61,35 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+@@ -53,7 +61,18 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
      let spacetimedb_token: Option<&String> = args.get_one("spacetimedb-token");
      let host: &String = args.get_one("auth-host").unwrap();
      let host = Url::parse(host)?;
-+    // XXX: specifying an url for the server below, instead of a nickname, will cause 'login' to
-+    // succeed but any subsequent commands will fail due to using default 127.0.0.1:3000(http)
-+    // because the url you used isn't saved in ~/.config/spacetime/cli.toml
-+    // see: https://github.com/clockworklabs/SpacetimeDB/issues/2512
++    // XXX: specifying an url for the server below, instead of an existing nickname, will cause 'login' to
++    // succeed but you might wrongly assume like I did in https://github.com/clockworklabs/SpacetimeDB/issues/2512
++    // that any subsequent commands like `spacetime publish` will use that server that you specified
++    // but instead they won't, they'll use a default 127.0.0.1:3000(http) server instead
++    // because the url you used to login isn't saved in ~/.config/spacetime/cli.toml
++    // only the (login)spacetimedb_token is, and to select a default or add a new server
++    // to the list you've to use `spacetime server help`
++    // so let's warn, but allow this behavior.
      let server_issued_login: Option<&String> = args.get_one("server");
-+    // Check if server_issued_login is a known nickname, and not a URL
 +    if let Some(server) = server_issued_login {
-+        // Fail if it's a URL
-+        if Url::parse(server).is_ok() { //FIXME: this whole diff block is wrong now, fix it, make it a warning at best!
-+            anyhow::bail!(
-+                "Expected a server nickname (e.g., 'local'), not that URL '{}'. \
-+                 See all server nicknames with 'spacetime server list' \
-+                 or add it with 'spacetime server add <nickname> <url>' (e.g., 'spacetime server add myservnick http://127.1.2.3:6543').",
-+                 server
-+            );
-+        }
-+        // Fail if it's not a known nickname
-+        let is_known_nickname = config.server_configs()
-+            .iter()
-+            .any(|cfg| cfg.nickname.as_ref() == Some(server));
-+        if !is_known_nickname {
-+            anyhow::bail!(
-+                "Unknown server nickname '{}'. \
-+                 See all server nicknames with 'spacetime server list' \
-+                 Or add it with 'spacetime server add <nickname> <url>' (e.g., 'spacetime server add myservnick http://127.1.2.3:6543').",
-+                 server
-+            );
-+        }
-+    }
++        println!("WARNING: the server that you specified here as '{}' isn't the one that will be used by commands like 'spacetime publish' but instead it's the one listed on 'spacetime server list' as the default (3 stars) that will be used, eg. 127.0.0.1:3000 if you haven't manually added any via 'spacetime server add'.\n",server);//extra new line
++    }//if
  
      if let Some(token) = spacetimedb_token {
          config.set_spacetimedb_token(token.clone());
-@@ -61,11 +97,14 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+@@ -61,11 +80,14 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
          return Ok(());
      }
  
@@ -210,7 +192,7 @@ index 8e2568b47..71e26ae8d 100644
      }
  
      Ok(())
-@@ -98,7 +137,7 @@ async fn exec_show(config: Config, args: &ArgMatches) -> Result<(), anyhow::Erro
+@@ -98,7 +120,7 @@ async fn exec_show(config: Config, args: &ArgMatches) -> Result<(), anyhow::Erro
      Ok(())
  }
  
@@ -219,7 +201,7 @@ index 8e2568b47..71e26ae8d 100644
      // Currently, this token does not expire. However, it will at some point in the future. When that happens,
      // this code will need to happen before any request to a spacetimedb server, rather than at the end of the login flow here.
      if let Some(token) = config.spacetimedb_token() {
-@@ -106,17 +145,19 @@ async fn spacetimedb_token_cached(config: &mut Config, host: &Url, direct_login:
+@@ -106,17 +128,19 @@ async fn spacetimedb_token_cached(config: &mut Config, host: &Url, direct_login:
          println!("If you want to log out, use spacetime logout.");
          Ok(token.clone())
      } else {
@@ -242,7 +224,7 @@ index 8e2568b47..71e26ae8d 100644
          let session_token = web_login_cached(config, host).await?;
          spacetimedb_login(host, &session_token).await?
      };
-@@ -271,8 +312,25 @@ struct LocalLoginResponse {
+@@ -271,8 +295,25 @@ struct LocalLoginResponse {
      pub token: String,
  }
  
