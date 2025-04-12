@@ -1,4 +1,5 @@
-* this is work in progress, even though it works so far (rust client, some cli commands)
+Future updates should be here: https://github.com/dare3path/spacetimedb-tls-patch
+This is work in progress, even though it works so far (rust client, some cli commands)
 
 diff --git a/Cargo.lock b/Cargo.lock
 index 5b15f068..75acd9a3 100644
