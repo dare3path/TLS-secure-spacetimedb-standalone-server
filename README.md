@@ -15,6 +15,7 @@ TODO: use this: https://github.com/dare3path/spacetimedb-cert-gen
   `spacetime start --edition standalone --listen-addr 127.0.0.1:3000 --ssl --cert ../spacetimedb-cert-gen/server.crt --key ../spacetimedb-cert-gen/server.key`
   - can use `--ssl`, `--tls`, `--https` or `--secure`, they're aliases of the same thing.
 - start a rust client from a different terminal and connect to the server in TLS mode:  
+  `cd ./crates/sdk/` (this is in SpacetimeDB repo)  
   `cargo run --example quickstart-chat -- --cert ../spacetimedb-cert-gen/ca.crt`  
   Note that spacetimedb commit 01c391f8a9cf6d2cdc4272237348019adb434d38 had the client hardcoded to connect to 127.0.0.1:3000, the patch kept this and only changed the scheme from http to https.
 
@@ -23,6 +24,7 @@ You can still use HTTP/plaintext mode (both the server and the client(s) must be
 - start the spacetimedb standalone server in plaintext mode:  
   `spacetime start --edition standalone --listen-addr 127.0.0.1:3000`
 - start a rust client from a different terminal and connect to the server in plaintext mode:  
+  `cd ./crates/sdk/` (this is in SpacetimeDB repo)  
   `cargo run --example quickstart-chat`
 
 If you're accidentally going to connect via TLS to the plaintext server, or connect via plaintext to the TLS server, you might encounter cryptic errors:
@@ -30,6 +32,7 @@ If you're accidentally going to connect via TLS to the plaintext server, or conn
   - start the spacetimedb standalone server in plaintext mode:  
     `spacetime start --edition standalone --listen-addr 127.0.0.1:3000`
   - start a rust client from a different terminal and connect to the server in TLS mode:  
+    `cd ./crates/sdk/` (this is in SpacetimeDB repo)  
     `cargo run --example quickstart-chat -- --cert ../spacetimedb-cert-gen/ca.crt`
   - The error seen on client is:  
 `thread 'main' panicked at crates/sdk/examples/quickstart-chat/main.rs:79:10:`  
@@ -43,6 +46,7 @@ If you're accidentally going to connect via TLS to the plaintext server, or conn
   - start the spacetimedb standalone server in TLS mode:  
     `spacetime start --edition standalone --listen-addr 127.0.0.1:3000 --ssl --cert ../spacetimedb-cert-gen/server.crt --key ../spacetimedb-cert-gen/server.key`
   - start a rust client from a different terminal and connect to the server in plaintext mode:  
+    `cd ./crates/sdk/` (this is in SpacetimeDB repo)  
     `cargo run --example quickstart-chat`
   - The error seen on client is:  
 `thread 'main' panicked at crates/sdk/examples/quickstart-chat/main.rs:79:10:`  
