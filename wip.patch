@@ -1,92 +1,399 @@
 * this is work in progress, even though it works so far (rust client, some cli commands)
-* contains PR1700 already (I will try to get it removed, most likely)
-* and another one for max level(made up)
-* didn't include Cargo.lock but it's definitely 'cargo update'-ed
-* uploaded today as is, else I'd have to postpone it until tomorrow+ when it's actually ready
 
-diff --git a/Cargo.toml b/Cargo.toml
-index 6609ba9df..5987d8713 100644
---- a/Cargo.toml
-+++ b/Cargo.toml
-@@ -52,7 +52,8 @@ resolver = "3"
- [profile.release]
- opt-level = 3
- debug-assertions = false
--overflow-checks = false
-+overflow-checks = true
-+debug=true
- lto = "thin"
- panic = 'unwind'
- incremental = false
-@@ -65,12 +66,12 @@ lto = "thin"
+diff --git a/Cargo.lock b/Cargo.lock
+index 5b15f068..75acd9a3 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -194,6 +194,12 @@ dependencies = [
+  "derive_arbitrary",
+ ]
  
- [profile.dev]
- opt-level = 0
--debug = true
-+debug = 1
- debug-assertions = true
- overflow-checks = true
- lto = false
- panic = 'unwind'
--incremental = true
-+incremental = false
- codegen-units = 256
- rpath = false
++[[package]]
++name = "arc-swap"
++version = "1.7.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "69f7f8c3906b62b754cd5326047894316021dcfe5a194c8ea52bdd94934a3457"
++
+ [[package]]
+ name = "arrayref"
+ version = "0.3.9"
+@@ -292,6 +298,29 @@ version = "1.4.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
  
-@@ -192,6 +193,7 @@ memchr = "2"
- mimalloc = "0.1.39"
- nohash-hasher = "0.2"
- once_cell = "1.16"
-+p256 = "0.13.2"
- parking_lot = { version = "0.12.1", features = ["send_guard", "arc_lock"] }
- paste = "1.0"
- percent-encoding = "2.3"
-@@ -208,8 +210,9 @@ quote = "1.0.8"
- rand = "0.8.5"
- rayon = "1.8"
- rayon-core = "1.11.0"
-+rcgen = { version = "0.13.1", features = ["pem", "x509-parser", "crypto", "ring"] }
- regex = "1"
--reqwest = { version = "0.12", features = ["stream", "json"] }
-+reqwest = { version = "0.12", features = ["stream", "json", "rustls-tls"] }
- ron = "0.8"
- rusqlite = { version = "0.29.0", features = ["bundled", "column_decltype"] }
- rust_decimal = { version = "1.29.1", features = ["db-tokio-postgres"] }
-@@ -248,7 +251,7 @@ thin-vec = "0.2.13"
- thiserror = "1.0.37"
- tokio = { version = "1.37", features = ["full"] }
- tokio-postgres = { version = "0.7.8", features = ["with-chrono-0_4"] }
--tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
-+tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
- tokio-util = { version = "0.7.4", features = ["time"] }
- toml = "0.8"
- toml_edit = "0.22.22"
-@@ -276,10 +279,6 @@ xdg = "2.5"
- tikv-jemallocator = { version = "0.6.0", features = ["profiling", "stats"] }
- tikv-jemalloc-ctl = { version = "0.6.0", features = ["stats"]}
++[[package]]
++name = "aws-lc-rs"
++version = "1.13.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "19b756939cb2f8dc900aa6dcd505e6e2428e9cae7ff7b028c49e3946efa70878"
++dependencies = [
++ "aws-lc-sys",
++ "zeroize",
++]
++
++[[package]]
++name = "aws-lc-sys"
++version = "0.28.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "b9f7720b74ed28ca77f90769a71fd8c637a0137f6fae4ae947e1050229cff57f"
++dependencies = [
++ "bindgen",
++ "cc",
++ "cmake",
++ "dunce",
++ "fs_extra",
++]
++
+ [[package]]
+ name = "axum"
+ version = "0.7.7"
+@@ -370,6 +399,28 @@ dependencies = [
+  "tracing",
+ ]
  
--# Vendor the openssl we rely on, rather than depend on a
--# potentially very old system version.
--openssl = { version = "0.10", features = ["vendored"] }
--
- [workspace.dependencies.wasmtime]
- version = "25"
- default-features = false
-diff --git a/crates/cli/Cargo.toml b/crates/cli/Cargo.toml
-index a83b67a4d..93760d2dd 100644
---- a/crates/cli/Cargo.toml
-+++ b/crates/cli/Cargo.toml
-@@ -68,7 +68,7 @@ tokio.workspace = true
- tokio-tungstenite.workspace = true
- toml.workspace = true
- toml_edit.workspace = true
--tracing = { workspace = true, features = ["release_max_level_off"] }
-+tracing = { workspace = true } #, features = ["release_max_level_off"] }
- walkdir.workspace = true
- wasmbin.workspace = true
- wasmtime.workspace = true
++[[package]]
++name = "axum-server"
++version = "0.7.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "495c05f60d6df0093e8fb6e74aa5846a0ad06abaf96d76166283720bf740f8ab"
++dependencies = [
++ "arc-swap",
++ "bytes",
++ "fs-err 3.1.0",
++ "http 1.1.0",
++ "http-body 1.0.1",
++ "hyper 1.5.0",
++ "hyper-util",
++ "pin-project-lite",
++ "rustls",
++ "rustls-pemfile 2.2.0",
++ "rustls-pki-types",
++ "tokio",
++ "tokio-rustls",
++ "tower-service",
++]
++
+ [[package]]
+ name = "backtrace"
+ version = "0.3.74"
+@@ -427,6 +478,29 @@ dependencies = [
+  "serde",
+ ]
+ 
++[[package]]
++name = "bindgen"
++version = "0.69.5"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "271383c67ccabffb7381723dea0672a673f292304fcb45c01cc648c7a8d58088"
++dependencies = [
++ "bitflags 2.6.0",
++ "cexpr",
++ "clang-sys",
++ "itertools 0.12.1",
++ "lazy_static",
++ "lazycell",
++ "log",
++ "prettyplease",
++ "proc-macro2",
++ "quote",
++ "regex",
++ "rustc-hash 1.1.0",
++ "shlex",
++ "syn 2.0.87",
++ "which",
++]
++
+ [[package]]
+ name = "bit-set"
+ version = "0.5.3"
+@@ -704,6 +778,15 @@ version = "1.1.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "6d43a04d8753f35258c91f8ec639f792891f748a1edbd759cf1dcea3382ad83c"
+ 
++[[package]]
++name = "cexpr"
++version = "0.6.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "6fac387a98bb7c37292057cffc56d62ecb629900026402633ae9160df93a8766"
++dependencies = [
++ "nom",
++]
++
+ [[package]]
+ name = "cfg-if"
+ version = "1.0.0"
+@@ -768,6 +851,17 @@ dependencies = [
+  "inout",
+ ]
+ 
++[[package]]
++name = "clang-sys"
++version = "1.8.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "0b023947811758c97c59bf9d1c188fd619ad4718dcaa767947df1cadb14f39f4"
++dependencies = [
++ "glob",
++ "libc",
++ "libloading",
++]
++
+ [[package]]
+ name = "clap"
+ version = "3.2.23"
+@@ -868,6 +962,15 @@ dependencies = [
+  "winapi",
+ ]
+ 
++[[package]]
++name = "cmake"
++version = "0.1.54"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "e7caa3f9de89ddbe2c607f4101924c5abec803763ae9534e4f4d7d8f84aa81f0"
++dependencies = [
++ "cc",
++]
++
+ [[package]]
+ name = "cobs"
+ version = "0.2.3"
+@@ -1024,7 +1127,7 @@ dependencies = [
+  "hashbrown 0.14.5",
+  "log",
+  "regalloc2",
+- "rustc-hash",
++ "rustc-hash 2.0.0",
+  "smallvec",
+  "target-lexicon",
+ ]
+@@ -1525,6 +1628,12 @@ dependencies = [
+  "shared_child",
+ ]
+ 
++[[package]]
++name = "dunce"
++version = "1.0.5"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
++
+ [[package]]
+ name = "educe"
+ version = "0.4.23"
+@@ -1847,6 +1956,16 @@ dependencies = [
+  "autocfg",
+ ]
+ 
++[[package]]
++name = "fs-err"
++version = "3.1.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "1f89bda4c2a21204059a977ed3bfe746677dfd137b83c339e702b0ac91d482aa"
++dependencies = [
++ "autocfg",
++ "tokio",
++]
++
+ [[package]]
+ name = "fs2"
+ version = "0.4.3"
+@@ -1857,6 +1976,12 @@ dependencies = [
+  "winapi",
+ ]
+ 
++[[package]]
++name = "fs_extra"
++version = "1.3.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "42703706b716c37f96a77aea830392ad231f44c9e9a67872fa5548707e11b11c"
++
+ [[package]]
+ name = "fuchsia-cprng"
+ version = "0.1.1"
+@@ -2901,6 +3026,12 @@ version = "1.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
+ 
++[[package]]
++name = "lazycell"
++version = "1.3.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
++
+ [[package]]
+ name = "leb128"
+ version = "0.2.5"
+@@ -2913,6 +3044,16 @@ version = "0.2.162"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "18d287de67fe55fd7e1581fe933d965a5a9477b38e949cfa9f8574ef01506398"
+ 
++[[package]]
++name = "libloading"
++version = "0.8.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
++dependencies = [
++ "cfg-if",
++ "windows-targets 0.52.6",
++]
++
+ [[package]]
+ name = "libm"
+ version = "0.2.11"
+@@ -3128,6 +3269,12 @@ version = "0.3.17"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
+ 
++[[package]]
++name = "minimal-lexical"
++version = "0.2.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
++
+ [[package]]
+ name = "miniz_oxide"
+ version = "0.8.0"
+@@ -3219,6 +3366,16 @@ version = "0.2.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451"
+ 
++[[package]]
++name = "nom"
++version = "7.1.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
++dependencies = [
++ "memchr",
++ "minimal-lexical",
++]
++
+ [[package]]
+ name = "nu-ansi-term"
+ version = "0.46.0"
+@@ -3817,6 +3974,16 @@ dependencies = [
+  "yansi",
+ ]
+ 
++[[package]]
++name = "prettyplease"
++version = "0.2.25"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "64d1ec885c64d0457d564db4ec299b2dae3f9c02808b8ad9c3a089c591b18033"
++dependencies = [
++ "proc-macro2",
++ "syn 2.0.87",
++]
++
+ [[package]]
+ name = "proc-macro-crate"
+ version = "3.2.0"
+@@ -4221,7 +4388,7 @@ checksum = "12908dbeb234370af84d0579b9f68258a0f67e201412dd9a2814e6f45b2fc0f0"
+ dependencies = [
+  "hashbrown 0.14.5",
+  "log",
+- "rustc-hash",
++ "rustc-hash 2.0.0",
+  "slice-group-by",
+  "smallvec",
+ ]
+@@ -4475,6 +4642,12 @@ version = "0.1.24"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "719b953e2095829ee67db738b3bfa9fa368c94900df327b3f07fe6e794d2fe1f"
+ 
++[[package]]
++name = "rustc-hash"
++version = "1.1.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
++
+ [[package]]
+ name = "rustc-hash"
+ version = "2.0.0"
+@@ -4509,7 +4682,10 @@ version = "0.23.16"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "eee87ff5d9b36712a58574e12e9f0ea80f915a5b0ac518d322b24a465617925e"
+ dependencies = [
++ "aws-lc-rs",
++ "log",
+  "once_cell",
++ "ring",
+  "rustls-pki-types",
+  "rustls-webpki",
+  "subtle",
+@@ -4546,6 +4722,7 @@ version = "0.102.8"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "64ca1bc8749bd4cf37b5ce386cc146580777b4e8572c7b97baf22c83f444bee9"
+ dependencies = [
++ "aws-lc-rs",
+  "ring",
+  "rustls-pki-types",
+  "untrusted",
+@@ -5121,7 +5298,7 @@ dependencies = [
+  "duct",
+  "email_address",
+  "flate2",
+- "fs-err",
++ "fs-err 2.11.0",
+  "futures",
+  "http 1.1.0",
+  "indicatif",
+@@ -5325,7 +5502,7 @@ dependencies = [
+  "regex",
+  "reqwest 0.12.9",
+  "rustc-demangle",
+- "rustc-hash",
++ "rustc-hash 2.0.0",
+  "scopeguard",
+  "semver",
+  "serde",
+@@ -5659,9 +5836,12 @@ dependencies = [
+  "home",
+  "http 1.1.0",
+  "log",
++ "native-tls",
+  "once_cell",
+  "prometheus",
+  "rand 0.9.0",
++ "rustls",
++ "rustls-pemfile 2.2.0",
+  "spacetimedb-client-api-messages",
+  "spacetimedb-data-structures",
+  "spacetimedb-lib",
+@@ -5719,6 +5899,7 @@ dependencies = [
+  "anyhow",
+  "async-trait",
+  "axum",
++ "axum-server",
+  "clap 4.5.20",
+  "dirs",
+  "futures",
+@@ -5728,6 +5909,8 @@ dependencies = [
+  "once_cell",
+  "openssl",
+  "prometheus",
++ "ring",
++ "rustls",
+  "scopeguard",
+  "serde_json",
+  "sled",
+@@ -5878,7 +6061,7 @@ checksum = "78ea1056caa9180e7e5727eed1a377d96c9f4615303fa82d2f4c202c64736dee"
+ dependencies = [
+  "async-trait",
+  "educe",
+- "fs-err",
++ "fs-err 2.11.0",
+  "futures",
+  "glob",
+  "humantime",
+@@ -5936,7 +6119,7 @@ dependencies = [
+  "clap 4.5.20",
+  "console",
+  "derive_more",
+- "fs-err",
++ "fs-err 2.11.0",
+  "futures",
+  "glob",
+  "itertools 0.12.1",
 diff --git a/crates/cli/src/subcommands/delete.rs b/crates/cli/src/subcommands/delete.rs
-index e0d5c7561..10e49baa2 100644
+index e0d5c756..10e49baa 100644
 --- a/crates/cli/src/subcommands/delete.rs
 +++ b/crates/cli/src/subcommands/delete.rs
 @@ -13,17 +13,45 @@ pub fn cli() -> clap::Command {
@@ -138,7 +445,7 @@ index e0d5c7561..10e49baa2 100644
      let builder = add_auth_header_opt(builder, &auth_header);
      builder.send().await?.error_for_status()?;
 diff --git a/crates/cli/src/subcommands/login.rs b/crates/cli/src/subcommands/login.rs
-index 8e2568b47..db5944df1 100644
+index 8e2568b4..db5944df 100644
 --- a/crates/cli/src/subcommands/login.rs
 +++ b/crates/cli/src/subcommands/login.rs
 @@ -31,6 +31,14 @@ pub fn cli() -> Command {
@@ -253,7 +560,7 @@ index 8e2568b47..db5944df1 100644
          .post(host.join("/v1/identity")?)
          .send()
 diff --git a/crates/cli/src/subcommands/logs.rs b/crates/cli/src/subcommands/logs.rs
-index c92a6f01c..298588b86 100644
+index c92a6f01..298588b8 100644
 --- a/crates/cli/src/subcommands/logs.rs
 +++ b/crates/cli/src/subcommands/logs.rs
 @@ -48,6 +48,14 @@ pub fn cli() -> clap::Command {
@@ -308,7 +615,7 @@ index c92a6f01c..298588b86 100644
      let mut res = builder.query(&query_parms).send().await?;
      let status = res.status();
 diff --git a/crates/cli/src/subcommands/publish.rs b/crates/cli/src/subcommands/publish.rs
-index 65cdf343c..80a8068fe 100644
+index 65cdf343..80a8068f 100644
 --- a/crates/cli/src/subcommands/publish.rs
 +++ b/crates/cli/src/subcommands/publish.rs
 @@ -63,6 +63,14 @@ i.e. only lowercase ASCII letters and numbers, separated by dashes."),
@@ -383,10 +690,10 @@ index 65cdf343c..80a8068fe 100644
          if !y_or_n(force, "Are you sure you want to proceed?")? {
              println!("Aborting");
 diff --git a/crates/cli/src/subcommands/sql.rs b/crates/cli/src/subcommands/sql.rs
-index 7071cc18e..2ba17ef7c 100644
+index 8e6cac17..252cc39f 100644
 --- a/crates/cli/src/subcommands/sql.rs
 +++ b/crates/cli/src/subcommands/sql.rs
-@@ -38,6 +38,14 @@ pub fn cli() -> clap::Command {
+@@ -37,6 +37,14 @@ pub fn cli() -> clap::Command {
          .arg(common_args::anonymous())
          .arg(common_args::server().help("The nickname, host name or URL of the server hosting the database"))
          .arg(common_args::yes())
@@ -401,7 +708,7 @@ index 7071cc18e..2ba17ef7c 100644
  }
  
  pub(crate) async fn parse_req(mut config: Config, args: &ArgMatches) -> Result<Connection, anyhow::Error> {
-@@ -46,10 +54,11 @@ pub(crate) async fn parse_req(mut config: Config, args: &ArgMatches) -> Result<C
+@@ -45,10 +53,11 @@ pub(crate) async fn parse_req(mut config: Config, args: &ArgMatches) -> Result<C
      let database_name_or_identity = args.get_one::<String>("database").unwrap();
      let anon_identity = args.get_flag("anon_identity");
  
@@ -415,7 +722,7 @@ index 7071cc18e..2ba17ef7c 100644
      })
  }
 diff --git a/crates/cli/src/util.rs b/crates/cli/src/util.rs
-index 491c71b7a..4fa0a900e 100644
+index 20e0591c..24f6730c 100644
 --- a/crates/cli/src/util.rs
 +++ b/crates/cli/src/util.rs
 @@ -17,11 +17,12 @@ pub async fn database_identity(
@@ -455,225 +762,8 @@ index 491c71b7a..4fa0a900e 100644
 +        spacetimedb_login_force(config, &host, true, None/*TODO*/).await
      }
  }
-diff --git a/crates/client-api/src/routes/subscribe.rs b/crates/client-api/src/routes/subscribe.rs
-index af2dd264d..e89ac5aba 100644
---- a/crates/client-api/src/routes/subscribe.rs
-+++ b/crates/client-api/src/routes/subscribe.rs
-@@ -121,12 +121,10 @@ where
-         name: ctx.client_actor_index().next_client_name(),
-     };
- 
--    let ws_config = WebSocketConfig {
--        max_message_size: Some(0x2000000),
--        max_frame_size: None,
--        accept_unmasked_frames: false,
--        ..Default::default()
--    };
-+    let ws_config = WebSocketConfig::default()
-+        .max_message_size(Some(0x2000000))
-+        .max_frame_size(None)
-+        .accept_unmasked_frames(false);
- 
-     tokio::spawn(async move {
-         let ws = match ws_upgrade.upgrade(ws_config).await {
-@@ -335,7 +333,7 @@ async fn ws_client_actor_inner(
-                 if mem::take(&mut got_pong) {
-                     // Send a ping message while continuing to poll the `handle_queue`,
-                     // to avoid deadlocks or delays due to enqueued futures holding resources.
--                    if let Err(e) = also_poll(ws.send(WsMessage::Ping(Vec::new())), make_progress(&mut current_message)).await {
-+                    if let Err(e) = also_poll(ws.send(WsMessage::Ping(Vec::new().into())), make_progress(&mut current_message)).await {
-                         log::warn!("error sending ping: {e:#}");
-                     }
-                     continue;
-@@ -413,15 +411,15 @@ enum ClientMessage {
-     Message(DataMessage),
-     Ping(Vec<u8>),
-     Pong(Vec<u8>),
--    Close(Option<CloseFrame<'static>>),
-+    Close(Option<CloseFrame<>>),
- }
- impl ClientMessage {
-     fn from_message(msg: WsMessage) -> Self {
-         match msg {
--            WsMessage::Text(s) => Self::Message(DataMessage::Text(s)),
--            WsMessage::Binary(b) => Self::Message(DataMessage::Binary(b)),
--            WsMessage::Ping(b) => Self::Ping(b),
--            WsMessage::Pong(b) => Self::Pong(b),
-+            WsMessage::Text(s) => Self::Message(DataMessage::Text(s.to_string())),
-+            WsMessage::Binary(b) => Self::Message(DataMessage::Binary(b.to_vec())),
-+            WsMessage::Ping(b) => Self::Ping(b.to_vec()),
-+            WsMessage::Pong(b) => Self::Pong(b.to_vec()),
-             WsMessage::Close(frame) => Self::Close(frame),
-             // WebSocket::read_message() never returns a raw Message::Frame
-             WsMessage::Frame(_) => unreachable!(),
-@@ -431,7 +429,7 @@ impl ClientMessage {
- 
- fn datamsg_to_wsmsg(msg: DataMessage) -> WsMessage {
-     match msg {
--        DataMessage::Text(text) => WsMessage::Text(text),
--        DataMessage::Binary(bin) => WsMessage::Binary(bin),
-+        DataMessage::Text(text) => WsMessage::Text(text.into()),
-+        DataMessage::Binary(bin) => WsMessage::Binary(bin.into()),
-     }
- }
-diff --git a/crates/core/Cargo.toml b/crates/core/Cargo.toml
-index a783f9fc7..fb6a4f567 100644
---- a/crates/core/Cargo.toml
-+++ b/crates/core/Cargo.toml
-@@ -65,13 +65,14 @@ lazy_static.workspace = true
- log.workspace = true
- memchr.workspace = true
- once_cell.workspace = true
--openssl.workspace = true
- parking_lot.workspace = true
- paste.workspace = true
- pin-project-lite.workspace = true
- prometheus.workspace = true
- rayon.workspace = true
- rayon-core.workspace = true
-+rcgen.workspace = true
-+p256.workspace = true
- regex.workspace = true
- rustc-demangle.workspace = true
- rustc-hash.workspace = true
-diff --git a/crates/core/src/auth/mod.rs b/crates/core/src/auth/mod.rs
-index 73f393aab..4a2d798b4 100644
---- a/crates/core/src/auth/mod.rs
-+++ b/crates/core/src/auth/mod.rs
-@@ -1,7 +1,5 @@
- use jsonwebtoken::{DecodingKey, EncodingKey};
--use openssl::ec::{EcGroup, EcKey};
--use openssl::nid::Nid;
--use openssl::pkey::PKey;
-+use rcgen::KeyPair;
- use spacetimedb_paths::cli::{PrivKeyPath, PubKeyPath};
- 
- use crate::config::CertificateAuthority;
-@@ -88,20 +86,14 @@ impl EcKeyPair {
-     }
- 
-     pub fn generate() -> anyhow::Result<Self> {
--        // Create a new EC group from a named curve.
--        let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1)?;
--
--        // Create a new EC key with the specified group.
--        let eckey = EcKey::generate(&group)?;
--
--        // Create a new PKey from the EC key.
--        let pkey = PKey::from_ec_key(eckey.clone())?;
-+        // Generate a new key pair for the P-256 curve (equivalent to `Nid::X9_62_PRIME256V1`).
-+        let key_pair = KeyPair::generate_for(&rcgen::PKCS_ECDSA_P256_SHA256)?;
- 
-         // Get the private key in PKCS#8 PEM format & write it.
--        let private_key_bytes = pkey.private_key_to_pem_pkcs8()?;
-+        let public_key_bytes = key_pair.public_key_pem().into_bytes();
- 
-         // Get the public key in PEM format & write it.
--        let public_key_bytes = eckey.public_key_to_pem()?;
-+        let private_key_bytes = key_pair.serialize_pem().into_bytes();
- 
-         Ok(Self {
-             public_key_bytes,
-diff --git a/crates/core/src/auth/token_validation.rs b/crates/core/src/auth/token_validation.rs
-index 27b6a786e..74f7e34da 100644
---- a/crates/core/src/auth/token_validation.rs
-+++ b/crates/core/src/auth/token_validation.rs
-@@ -333,7 +333,6 @@ mod tests {
-     };
-     use crate::auth::JwtKeys;
-     use base64::Engine;
--    use openssl::ec::{EcGroup, EcKey};
-     use serde_json;
-     use spacetimedb_lib::Identity;
- 
-@@ -480,6 +479,8 @@ mod tests {
-     use axum::routing::get;
-     use axum::Json;
-     use axum::Router;
-+    use p256::elliptic_curve::sec1::ToEncodedPoint;
-+    use p256::pkcs8::DecodePublicKey;
-     use tokio::net::TcpListener;
-     use tokio::sync::oneshot;
- 
-@@ -666,51 +667,36 @@ mod tests {
- 
-     // Extract the x and y coordinates from a public key and return a JWK for a single key.
-     fn to_jwk_json(jk: &JwtKeys) -> anyhow::Result<serde_json::Value> {
--        let eck = EcKey::public_key_from_pem(&jk.public_pem)?;
--
--        let group = EcGroup::from_curve_name(openssl::nid::Nid::X9_62_PRIME256V1)?;
--        let mut ctx = openssl::bn::BigNumContext::new()?;
--
--        // Get the x and y coordinates.
--        let mut x = openssl::bn::BigNum::new()?;
--        // let mut x = openssl::bn::BigNumRef
--        let mut y = openssl::bn::BigNum::new()?;
--        eck.public_key().affine_coordinates(&group, &mut x, &mut y, &mut ctx)?;
--
--        let x_bytes = x.to_vec();
--        let y_bytes = y.to_vec();
--
--        let x_padded = if x_bytes.len() < 32 {
--            let mut padded = vec![0u8; 32];
--            padded[32 - x_bytes.len()..].copy_from_slice(&x_bytes);
--            padded
--        } else {
--            x_bytes
-+        // Parse the public key from PEM.
-+        let public_key = p256::PublicKey::from_public_key_pem(std::str::from_utf8(&jk.public_pem)?)?;
-+        // Convert the public key to an uncompressed SEC1-encoded point.
-+        let encoded_point = public_key.to_encoded_point(false); // false for uncompressed
-+        let coordinates = encoded_point.coordinates();
-+
-+        // Extract x and y coordinates.
-+        let (x_bytes, y_bytes) = match coordinates {
-+            p256::elliptic_curve::sec1::Coordinates::Uncompressed { x, y } => (x.as_slice(), y.as_slice()),
-+            _ => return Err(anyhow::anyhow!("Invalid coordinates")),
-         };
- 
--        let y_padded = if y_bytes.len() < 32 {
--            let mut padded = vec![0u8; 32];
--            padded[32 - y_bytes.len()..].copy_from_slice(&y_bytes);
--            padded
--        } else {
--            y_bytes
--        };
--        let x_b64 = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(x_padded);
--        let y_b64 = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(y_padded);
--
--        let mut jwks = serde_json::json!(
--            {
--                "kty": "EC",
--                "crv": "P-256",
--                "use": "sig",
--                "alg": "ES256",
--                "x": x_b64,
--                "y": y_b64
--            }
--        );
-+        // Base64-url encode x and y coordinates.
-+        let x_b64 = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(x_bytes);
-+        let y_b64 = base64::prelude::BASE64_URL_SAFE_NO_PAD.encode(y_bytes);
-+
-+        // Construct the JWK JSON.
-+        let mut jwks = serde_json::json!({
-+            "kty": "EC",
-+            "crv": "P-256",
-+            "use": "sig",
-+            "alg": "ES256",
-+            "x": x_b64,
-+            "y": y_b64
-+        });
-+
-         if let Some(kid) = &jk.kid {
-             jwks["kid"] = kid.to_string().into();
-         }
-+
-         Ok(jwks)
-     }
- }
 diff --git a/crates/sdk/Cargo.toml b/crates/sdk/Cargo.toml
-index 9daa2a983..739b7ccf0 100644
+index 9daa2a98..739b7ccf 100644
 --- a/crates/sdk/Cargo.toml
 +++ b/crates/sdk/Cargo.toml
 @@ -29,6 +29,10 @@ prometheus.workspace = true
@@ -688,7 +778,7 @@ index 9daa2a983..739b7ccf0 100644
  [dev-dependencies]
  # for quickstart-chat and cursive-chat examples
 diff --git a/crates/sdk/examples/quickstart-chat/main.rs b/crates/sdk/examples/quickstart-chat/main.rs
-index e04ff9cb3..f686791ae 100644
+index e04ff9cb..f686791a 100644
 --- a/crates/sdk/examples/quickstart-chat/main.rs
 +++ b/crates/sdk/examples/quickstart-chat/main.rs
 @@ -5,11 +5,20 @@ use module_bindings::*;
@@ -760,7 +850,7 @@ index e04ff9cb3..f686791ae 100644
          .build()
          .expect("Failed to connect")
 diff --git a/crates/sdk/src/db_connection.rs b/crates/sdk/src/db_connection.rs
-index e1e4133e3..9c6a300b7 100644
+index e1e4133e..9c6a300b 100644
 --- a/crates/sdk/src/db_connection.rs
 +++ b/crates/sdk/src/db_connection.rs
 @@ -748,6 +748,8 @@ pub struct DbConnectionBuilder<M: SpacetimeModule> {
@@ -805,7 +895,7 @@ index e1e4133e3..9c6a300b7 100644
      pub fn with_module_name(mut self, name_or_identity: impl Into<String>) -> Self {
          self.module_name = Some(name_or_identity.into());
 diff --git a/crates/sdk/src/websocket.rs b/crates/sdk/src/websocket.rs
-index 7a4119af0..e80b5687f 100644
+index 436520d5..ac21fa7b 100644
 --- a/crates/sdk/src/websocket.rs
 +++ b/crates/sdk/src/websocket.rs
 @@ -21,10 +21,11 @@ use tokio::task::JoinHandle;
@@ -822,7 +912,7 @@ index 7a4119af0..e80b5687f 100644
  };
  
  use crate::metrics::CLIENT_METRICS;
-@@ -207,23 +208,83 @@ impl WsConnection {
+@@ -207,19 +208,85 @@ impl WsConnection {
          token: Option<&str>,
          connection_id: ConnectionId,
          params: WsParams,
@@ -897,23 +987,20 @@ index 7a4119af0..e80b5687f 100644
 +        };
 +
 +        let (sock, _): (WebSocketStream<MaybeTlsStream<TcpStream>>, _) = client_async_tls_with_config(
++//        let (sock, _): (WebSocketStream<MaybeTlsStream<TcpStream>>, _) = connect_async_with_config(
              req,
 +            tcp_stream,
              // TODO(kim): In order to be able to replicate module WASM blobs,
              // `cloud-next` cannot have message / frame size limits. That's
              // obviously a bad default for all other clients, though.
--            Some(WebSocketConfig {
--                max_frame_size: None,
--                max_message_size: None,
--                ..WebSocketConfig::default()
--            }),
+             Some(WebSocketConfig::default().max_frame_size(None).max_message_size(None)),
 -            false,
-+            Some(WebSocketConfig::default().max_frame_size(None).max_message_size(None)),
-+            connector,
++            connector
++//            false,
          )
          .await
          .map_err(|source| WsError::Tungstenite {
-@@ -235,7 +296,7 @@ impl WsConnection {
+@@ -231,7 +298,7 @@ impl WsConnection {
              connection_id,
              sock,
          })
@@ -922,29 +1009,11 @@ index 7a4119af0..e80b5687f 100644
  
      pub(crate) fn parse_response(bytes: &[u8]) -> Result<ServerMessage<BsatnFormat>, WsError> {
          let (compression, bytes) = bytes.split_first().ok_or(WsError::EmptyMessage)?;
-@@ -265,7 +326,7 @@ impl WsConnection {
-     }
- 
-     pub(crate) fn encode_message(msg: ClientMessage<Bytes>) -> WebSocketMessage {
--        WebSocketMessage::Binary(bsatn::to_vec(&msg).unwrap())
-+        WebSocketMessage::Binary(bsatn::to_vec(&msg).unwrap().into())
-     }
- 
-     fn maybe_log_error<T, U: std::fmt::Debug>(cause: &str, res: std::result::Result<T, U>) {
-@@ -386,7 +447,7 @@ impl WsConnection {
-                         }
- 
-                         log::trace!("sending client ping");
--                        let ping = WebSocketMessage::Ping(vec![]);
-+                        let ping = WebSocketMessage::Ping(vec![].into());
-                         if let Err(e) = self.sock.send(ping).await {
-                             log::warn!("Error sending ping: {e:?}");
-                             break;
 diff --git a/crates/standalone/Cargo.toml b/crates/standalone/Cargo.toml
-index 209f2707a..44dde5484 100644
+index 5207edf4..61a191de 100644
 --- a/crates/standalone/Cargo.toml
 +++ b/crates/standalone/Cargo.toml
-@@ -25,13 +25,21 @@ spacetimedb-paths.workspace = true
+@@ -29,6 +29,15 @@ spacetimedb-paths.workspace = true
  anyhow.workspace = true
  async-trait.workspace = true
  axum.workspace = true
@@ -955,20 +1024,13 @@ index 209f2707a..44dde5484 100644
 +axum-server = { version = "0.7.2", features = ["tls-rustls"] }
 +
 +ring = "0.17"  # explicitly add this for the CryptoProvider, even tho it's included transitively.
-+rustls= "0.23"
++rustls= { version="0.23", default-features = true, features=[ "ring" ] }
 +
  clap = { workspace = true, features = ["derive", "string"] }
  dirs.workspace = true
  futures.workspace = true
- hostname.workspace = true
- http.workspace = true
- log.workspace = true
--openssl.workspace = true
- prometheus.workspace = true
- scopeguard.workspace = true
- serde_json.workspace = true
 diff --git a/crates/standalone/src/subcommands/start.rs b/crates/standalone/src/subcommands/start.rs
-index 5f6f705d7..06855ce21 100644
+index d74267c6..29d0cb33 100644
 --- a/crates/standalone/src/subcommands/start.rs
 +++ b/crates/standalone/src/subcommands/start.rs
 @@ -13,7 +13,7 @@ use spacetimedb_client_api::routes::database::DatabaseRoutes;
@@ -990,16 +1052,7 @@ index 5f6f705d7..06855ce21 100644
      // .after_help("Run `spacetime help start` for more detailed information.")
  }
  
-@@ -90,7 +93,7 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
-     };
-     let db_config = Config { storage };
- 
--    banner();
-+    //banner();
-     let exe_name = std::env::current_exe()?;
-     let exe_name = exe_name.file_name().unwrap().to_str().unwrap();
-     println!("{} version: {}", exe_name, env!("CARGO_PKG_VERSION"));
-@@ -142,13 +145,39 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
+@@ -143,10 +146,35 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
      let extra = axum::Router::new().nest("/health", spacetimedb_client_api::routes::health::router());
      let service = router(&ctx, db_routes, extra).with_state(ctx);
  
@@ -1039,20 +1092,3 @@ index 5f6f705d7..06855ce21 100644
      Ok(())
  }
  
-+#[allow(dead_code)]
- fn banner() {
-     println!(
-         r#"
-diff --git a/crates/update/Cargo.toml b/crates/update/Cargo.toml
-index 130d6ce4a..86ce02160 100644
---- a/crates/update/Cargo.toml
-+++ b/crates/update/Cargo.toml
-@@ -24,7 +24,7 @@ tar.workspace = true
- tempfile.workspace = true
- tokio.workspace = true
- toml.workspace = true
--tracing = { workspace = true, features = ["release_max_level_off"] }
-+tracing = { workspace = true } #, features = ["release_max_level_off"] }
- zip = "2"
- 
- [target.'cfg(windows)'.dependencies]
