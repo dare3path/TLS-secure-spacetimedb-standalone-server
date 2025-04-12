@@ -16,7 +16,7 @@ TODO: use this: https://github.com/dare3path/spacetimedb-cert-gen
   - can use `--ssl`, `--tls`, `--https` or `--secure`, they're aliases of the same thing.
 - start a rust client from a different terminal and connect to the server in TLS mode:  
   `cd ./crates/sdk/` (this is in SpacetimeDB repo)  
-  `cargo run --example quickstart-chat -- --cert ../spacetimedb-cert-gen/ca.crt`  
+  `cargo run --example quickstart-chat -- --cert ../../../spacetimedb-cert-gen/ca.crt`  
   Note that spacetimedb commit 01c391f8a9cf6d2cdc4272237348019adb434d38 had the client hardcoded to connect to 127.0.0.1:3000, the patch kept this and only changed the scheme from http to https.
 
 ## Extra
@@ -33,7 +33,7 @@ If you're accidentally going to connect via TLS to the plaintext server, or conn
     `spacetime start --edition standalone --listen-addr 127.0.0.1:3000`
   - start a rust client from a different terminal and connect to the server in TLS mode:  
     `cd ./crates/sdk/` (this is in SpacetimeDB repo)  
-    `cargo run --example quickstart-chat -- --cert ../spacetimedb-cert-gen/ca.crt`
+    `cargo run --example quickstart-chat -- --cert ../../../spacetimedb-cert-gen/ca.crt`
   - The error seen on client is:  
 `thread 'main' panicked at crates/sdk/examples/quickstart-chat/main.rs:79:10:`  
 `Failed to connect: FailedToConnect { source: InternalError { message: "Failed to initiate WebSocket connection", cause: Some(Tungstenite { uri: wss://localhost:3000/v1/database/quickstart-chat/subscribe?connection_id=3a28480e485d68ec95bc00b0dc699cb8&compression=Brotli, source: Tls(Native(Ssl(Error { code: ErrorCode(1), cause: Some(Ssl(ErrorStack([Error { code: 167772358, library: "SSL routines", function: "tls_get_more_records", reason: "packet length too long", file: "ssl/record/methods/tls_common.c", line: 662 }, Error { code: 167772473, library: "SSL routines", function: "", reason: "record layer failure", file: "ssl/record/rec_layer_s3.c", line: 688 }]))) }, X509VerifyResult { code: 0, error: "ok" }))) }) } }`  
