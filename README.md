@@ -7,7 +7,7 @@ This repo provides a patch for [SpacetimeDB](https://github.com/clockworklabs/Sp
 
 ## Usage:
 - apply patch TODO:  
-apply on commit 01c391f8a9cf6d2cdc4272237348019adb434d38 (HEAD -> master, origin/master, origin/HEAD)
+apply on commit 651f79d22cc4bb1c3c996ef2436186501a5d83bd (origin/master, origin/HEAD, master)
 - install `spacetime` command TODO:
 - generate server private and public keys (maybe sign by your own local CA):  
 TODO: use this: https://github.com/dare3path/spacetimedb-cert-gen
@@ -17,7 +17,7 @@ TODO: use this: https://github.com/dare3path/spacetimedb-cert-gen
 - start a rust client from a different terminal and connect to the server in TLS mode:  
   `cd ./crates/sdk/` (this is in SpacetimeDB repo)  
   `cargo run --example quickstart-chat -- --cert ../../../spacetimedb-cert-gen/ca.crt`  
-  Note that spacetimedb commit 01c391f8a9cf6d2cdc4272237348019adb434d38 had the client hardcoded to connect to 127.0.0.1:3000, the patch kept this and only changed the scheme from http to https.
+  Note that spacetimedb commit 651f79d22cc4bb1c3c996ef2436186501a5d83bd had the client hardcoded to connect to 127.0.0.1:3000, the patch kept this and only changed the scheme from http to https.
 
 ## Extra
 You can still use HTTP/plaintext mode (both the server and the client(s) must be in the same mode - plaintext here):  
