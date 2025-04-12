@@ -841,7 +841,7 @@ index e04ff9cb..f686791a 100644
 +        .with_uri(&uri)
 +//;    // ### Add trusted cert if provided
 +//    if let Some(cert_path) = cert_path {
-+//    //XXX: we don't wanna do this(that's why it's acception Option instead):
++//    //XXX: we don't wanna do this(that's why it's accepting Option instead):
 +//        builder = builder.with_trusted_cert(cert_path);
 +//    }
 +//     // Finalize configuration and connect!
