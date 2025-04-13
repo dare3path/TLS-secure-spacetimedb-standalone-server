@@ -50,7 +50,7 @@ spacetime publish
 spacetime login
 spacetime logs
 spacetime delete
-spacetime sql
+TODO: spacetime sql
 spacetime start  (this requires passing --key and --ssl also)
 ======
 FIXME: the changes in config.rs are supremely hacky, since the original code disregarded protocol as uniquely identifying the server+proto in the list of `spacetime server list`, so there are functions that take only host:port and assume there's only one in the list where they can be two or more: one for each proto (http, https)
