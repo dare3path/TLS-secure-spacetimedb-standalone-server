@@ -1,3 +1,5 @@
+Enable TLS for SpacetimeDB standalone server with self-signed or CA-signed certs, and allows clients(rust, cli) to pass --cert with a trusted cert (like server's self-signed cert or CA's public key) to not fail signature check.
+
 Future updates should be here: https://github.com/dare3path/spacetimedb-tls-patch
 This is work in progress, proof-of-concept patch, even though it works so far (rust client, some cli commands)
 This patch is already an upstream _draft_ PR here:
