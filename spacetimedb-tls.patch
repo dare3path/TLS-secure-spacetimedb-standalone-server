@@ -62,7 +62,7 @@ FIXME: the changes in config.rs are supremely hacky, since the original code dis
 
 
 diff --git a/Cargo.lock b/Cargo.lock
-index 5b15f068..38f2bfec 100644
+index 5b15f068..bed19109 100644
 --- a/Cargo.lock
 +++ b/Cargo.lock
 @@ -194,6 +194,12 @@ dependencies = [
@@ -413,7 +413,31 @@ index 5b15f068..38f2bfec 100644
   "scopeguard",
   "semver",
   "serde",
-@@ -5659,9 +5837,12 @@ dependencies = [
+@@ -5501,6 +5679,7 @@ dependencies = [
+  "hex",
+  "insta",
+  "itertools 0.12.1",
++ "native-tls",
+  "proptest",
+  "proptest-derive",
+  "ron",
+@@ -5512,6 +5691,7 @@ dependencies = [
+  "spacetimedb-primitives",
+  "spacetimedb-sats",
+  "thiserror 1.0.69",
++ "tokio",
+ ]
+ 
+ [[package]]
+@@ -5648,6 +5828,7 @@ dependencies = [
+ name = "spacetimedb-sdk"
+ version = "1.1.0"
+ dependencies = [
++ "anyhow",
+  "anymap",
+  "base64 0.21.7",
+  "brotli",
+@@ -5659,9 +5840,12 @@ dependencies = [
   "home",
   "http 1.1.0",
   "log",
@@ -426,7 +450,7 @@ index 5b15f068..38f2bfec 100644
   "spacetimedb-client-api-messages",
   "spacetimedb-data-structures",
   "spacetimedb-lib",
-@@ -5719,6 +5900,7 @@ dependencies = [
+@@ -5719,6 +5903,7 @@ dependencies = [
   "anyhow",
   "async-trait",
   "axum",
@@ -434,7 +458,7 @@ index 5b15f068..38f2bfec 100644
   "clap 4.5.20",
   "dirs",
   "futures",
-@@ -5728,6 +5910,8 @@ dependencies = [
+@@ -5728,6 +5913,8 @@ dependencies = [
   "once_cell",
   "openssl",
   "prometheus",
@@ -443,7 +467,7 @@ index 5b15f068..38f2bfec 100644
   "scopeguard",
   "serde_json",
   "sled",
-@@ -5878,7 +6062,7 @@ checksum = "78ea1056caa9180e7e5727eed1a377d96c9f4615303fa82d2f4c202c64736dee"
+@@ -5878,7 +6065,7 @@ checksum = "78ea1056caa9180e7e5727eed1a377d96c9f4615303fa82d2f4c202c64736dee"
  dependencies = [
   "async-trait",
   "educe",
@@ -452,7 +476,7 @@ index 5b15f068..38f2bfec 100644
   "futures",
   "glob",
   "humantime",
-@@ -5936,7 +6120,7 @@ dependencies = [
+@@ -5936,7 +6123,7 @@ dependencies = [
   "clap 4.5.20",
   "console",
   "derive_more",
@@ -1501,10 +1525,18 @@ index 6eb2039c..30bde3c6 100644
      let task = async {
          subscribe(&mut ws, queries.cloned().map(Into::into).collect()).await?;
 diff --git a/crates/cli/src/util.rs b/crates/cli/src/util.rs
-index 20e0591c..ce35087a 100644
+index 20e0591c..64f91fdb 100644
 --- a/crates/cli/src/util.rs
 +++ b/crates/cli/src/util.rs
-@@ -17,11 +17,12 @@ pub async fn database_identity(
+@@ -9,6 +9,7 @@ use std::path::Path;
+ 
+ use crate::config::Config;
+ use crate::login::{spacetimedb_login_force, DEFAULT_AUTH_HOST};
++pub use spacetimedb_lib::load_root_cert;
+ 
+ pub const UNSTABLE_WARNING: &str = "WARNING: This command is UNSTABLE and subject to breaking changes.";
+ 
+@@ -17,11 +18,12 @@ pub async fn database_identity(
      config: &Config,
      name_or_identity: &str,
      server: Option<&str>,
@@ -1518,24 +1550,10 @@ index 20e0591c..ce35087a 100644
          .await?
          .with_context(|| format!("the dns resolution of `{name_or_identity}` failed."))
  }
-@@ -106,13 +107,48 @@ impl ResponseExt for reqwest::Response {
+@@ -106,13 +108,34 @@ impl ResponseExt for reqwest::Response {
      }
  }
  
-+pub async fn load_root_cert(cert_path: Option<&Path>) -> anyhow::Result<Option<native_tls::Certificate>> {
-+    if let Some(path) = cert_path {
-+        let cert_pem = tokio::fs::read_to_string(path)
-+            .await
-+            .context(format!("Failed to read certificate file: {}", path.display()))?;
-+        let cert = native_tls::Certificate::from_pem(cert_pem.as_bytes())
-+            .context(format!("Failed to parse PEM certificate: {}", path.display()))?;
-+        eprintln!("Added trusted certificate from {} for a new TLS connection.", path.display());
-+        Ok(Some(cert))
-+    } else {
-+        eprintln!("No trusted certificate specified via --cert for this new connection, thus if you used local CA or self-signed server certificate, you may get an error like '(unable to get local issuer certificate)' next.");
-+        Ok(None)
-+    }
-+}
 +
 +pub async fn configure_tls(cert_path: Option<&Path>) -> anyhow::Result<reqwest::ClientBuilder> { // Added: TLS config
 +    let mut client_builder = reqwest::Client::builder();
@@ -1568,7 +1586,7 @@ index 20e0591c..ce35087a 100644
      let url = format!("{}/v1/database/{}/identity", config.get_host_url(server)?, domain);
      let Some(res) = client.get(url).send().await?.found() else {
          return Ok(None);
-@@ -123,8 +159,20 @@ pub async fn spacetime_dns(
+@@ -123,8 +146,20 @@ pub async fn spacetime_dns(
          .context("identity endpoint did not return an identity")
  }
  
@@ -1591,7 +1609,7 @@ index 20e0591c..ce35087a 100644
      let res = builder.send().await?.error_for_status()?;
      let fingerprint = res.text().await?;
      Ok(fingerprint)
-@@ -314,9 +362,9 @@ pub async fn get_login_token_or_log_in(
+@@ -314,9 +349,9 @@ pub async fn get_login_token_or_log_in(
  
      if full_login {
          let host = Url::parse(DEFAULT_AUTH_HOST)?;
@@ -1603,8 +1621,45 @@ index 20e0591c..ce35087a 100644
 +        spacetimedb_login_force(config, &host, true, None/*TODO*/).await
      }
  }
+diff --git a/crates/lib/Cargo.toml b/crates/lib/Cargo.toml
+index 417af799..39916843 100644
+--- a/crates/lib/Cargo.toml
++++ b/crates/lib/Cargo.toml
+@@ -42,6 +42,8 @@ serde = { workspace = true, optional = true }
+ thiserror.workspace = true
+ blake3.workspace = true
+ enum-map = { workspace = true, optional = true }
++tokio.workspace = true
++native-tls = "0.2"
+ 
+ # For the 'proptest' feature.
+ proptest = { workspace = true, optional = true }
+diff --git a/crates/lib/src/lib.rs b/crates/lib/src/lib.rs
+index f1963db6..125b6454 100644
+--- a/crates/lib/src/lib.rs
++++ b/crates/lib/src/lib.rs
+@@ -384,3 +384,19 @@ pub fn resolved_type_via_v9<T: SpacetimeType>() -> AlgebraicType {
+         .resolve_refs()
+         .expect("recursive types not supported")
+ }
++
++pub async fn load_root_cert(cert_path: Option<&std::path::Path>) -> anyhow::Result<Option<native_tls::Certificate>> {
++    if let Some(path) = cert_path {
++        let cert_pem = tokio::fs::read_to_string(path)
++            .await
++            .context(format!("Failed to read certificate file: {}", path.display()))?;
++        let cert = native_tls::Certificate::from_pem(cert_pem.as_bytes())
++            .context(format!("Failed to parse PEM certificate: {}", path.display()))?;
++        eprintln!("Added trusted certificate from {} for a new TLS connection.", path.display());
++        Ok(Some(cert))
++    } else {
++        eprintln!("No trusted certificate specified via --cert for this new connection, thus if you used local CA or self-signed server certificate, you may get an error like '(unable to get local issuer certificate)' next.");
++        Ok(None)
++    }
++}
++
 diff --git a/crates/sdk/Cargo.toml b/crates/sdk/Cargo.toml
-index 9daa2a98..739b7ccf 100644
+index 9daa2a98..2d95cbbe 100644
 --- a/crates/sdk/Cargo.toml
 +++ b/crates/sdk/Cargo.toml
 @@ -29,6 +29,10 @@ prometheus.workspace = true
@@ -1613,8 +1668,8 @@ index 9daa2a98..739b7ccf 100644
  tokio-tungstenite.workspace = true
 +rustls = "0.23"
 +rustls-pemfile = "2.2.0"
-+#tokio-rustls="0.24"
 +native-tls = "0.2"  # Explicitly add for Connector::NativeTls
++anyhow="1.0"
  
  [dev-dependencies]
  # for quickstart-chat and cursive-chat examples
@@ -1736,7 +1791,7 @@ index e1e4133e..9c6a300b 100644
      pub fn with_module_name(mut self, name_or_identity: impl Into<String>) -> Self {
          self.module_name = Some(name_or_identity.into());
 diff --git a/crates/sdk/src/websocket.rs b/crates/sdk/src/websocket.rs
-index 436520d5..8c612bd8 100644
+index 436520d5..a4002f9f 100644
 --- a/crates/sdk/src/websocket.rs
 +++ b/crates/sdk/src/websocket.rs
 @@ -21,10 +21,11 @@ use tokio::task::JoinHandle;
@@ -1753,7 +1808,26 @@ index 436520d5..8c612bd8 100644
  };
  
  use crate::metrics::CLIENT_METRICS;
-@@ -207,19 +208,86 @@ impl WsConnection {
+@@ -90,6 +91,18 @@ pub(crate) struct WsConnection {
+     sock: WebSocketStream<MaybeTlsStream<TcpStream>>,
+ }
+ 
++impl From<anyhow::Error> for WsError {
++    fn from(err: anyhow::Error) -> Self {
++        WsError::Tungstenite {
++            uri: Uri::default(), // Fallback; context provides real URI
++            source: Arc::new(tokio_tungstenite::tungstenite::Error::Io(std::io::Error::new(
++                std::io::ErrorKind::Other,
++                err.to_string(),
++            ))),
++        }
++    }
++}
++
+ fn parse_scheme(scheme: Option<Scheme>) -> Result<Scheme, UriError> {
+     Ok(match scheme {
+         Some(s) => match s.as_str() {
+@@ -207,19 +220,70 @@ impl WsConnection {
          token: Option<&str>,
          connection_id: ConnectionId,
          params: WsParams,
@@ -1766,7 +1840,7 @@ index 436520d5..8c612bd8 100644
  
 -        let (sock, _): (WebSocketStream<MaybeTlsStream<TcpStream>>, _) = connect_async_with_config(
 +        let host = uri.clone(); //shadow, and it's thus wss:// not https://
-+        use native_tls::Certificate;
++        //use native_tls::Certificate;
 +        use native_tls::TlsConnector;
 +        use std::sync::Arc;
 +        use tokio::net::TcpStream;
@@ -1796,23 +1870,9 @@ index 436520d5..8c612bd8 100644
 +            //FIXME: --cert implies wss, or do we want to allow --cert even for ws instead of error-ing!
 +            let mut builder = TlsConnector::builder();
 +            if let Some(cert_path) = trusted_cert {
-+                let cert_pem = std::fs::read_to_string(cert_path).map_err(|e| WsError::Tungstenite {
-+                    uri: uri.clone(),
-+                    source: Arc::new(tokio_tungstenite::tungstenite::Error::Io(std::io::Error::new(
-+                        e.kind(),
-+                        format!("Failed to read cert file '{}': {}", cert_path.display(), e),
-+                    ))),
-+                })?;
-+                let cert = Certificate::from_pem(cert_pem.as_bytes()).map_err(|e| WsError::Tungstenite {
-+                    uri: uri.clone(),
-+                    source: Arc::new(tokio_tungstenite::tungstenite::Error::Io(std::io::Error::new(
-+                        std::io::ErrorKind::InvalidData,
-+                        format!("Failed to parse PEM cert file '{}': {}", cert_path.display(), e),
-+                    ))),
-+                })?;
-+                builder.add_root_certificate(cert);
-+            } else {
-+                println!("Didn't add trusted cert file {:?}", trusted_cert);
++                if let Some(cert) = spacetimedb_lib::load_root_cert(Some(cert_path.as_path())).await? {
++                    builder.add_root_certificate(cert);
++                }
 +            }
 +            let tls_connector = builder.build().map_err(|e| WsError::Tungstenite {
 +                uri: uri.clone(),
@@ -1829,7 +1889,6 @@ index 436520d5..8c612bd8 100644
 +        };
 +
 +        let (sock, _): (WebSocketStream<MaybeTlsStream<TcpStream>>, _) = client_async_tls_with_config(
-+//        let (sock, _): (WebSocketStream<MaybeTlsStream<TcpStream>>, _) = connect_async_with_config(
              req,
 +            tcp_stream,
              // TODO(kim): In order to be able to replicate module WASM blobs,
@@ -1838,11 +1897,10 @@ index 436520d5..8c612bd8 100644
              Some(WebSocketConfig::default().max_frame_size(None).max_message_size(None)),
 -            false,
 +            connector
-+//            false,
          )
          .await
          .map_err(|source| WsError::Tungstenite {
-@@ -231,7 +299,7 @@ impl WsConnection {
+@@ -231,7 +295,7 @@ impl WsConnection {
              connection_id,
              sock,
          })
