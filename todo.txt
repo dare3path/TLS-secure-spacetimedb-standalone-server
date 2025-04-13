@@ -9,6 +9,9 @@ Here’s the list with a quick note on what each does and why it needs a server:
     repl.rs: Interactive SQL/reducer REPL—connects to server for live queries.
 
 ----------------
+crates in Cargo.toml should probably be moved to workspace so they're same version (when updated) in all places.
+----------------
+DOS: disallow reading more than say 1MiB of --cert /dev/zero or else would just oom
 ----------------
 
 
