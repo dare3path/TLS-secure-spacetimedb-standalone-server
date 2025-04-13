@@ -90,6 +90,312 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEfwAqvSbxMUZKdCsvzr9tdQJOhuG/
 24jZ+oMN18FS6Py9CDNzGeAzu2kqjlybtpYRqkchYqv8o44khX9TZlhyWA==
 -----END PUBLIC KEY-----
 ```
+
+<details> <summary> `spacetime describe` (click me to expand) </summary>
+
+```
+$ spacetime describe quickstart-chat --json --cert ../../../my/spacetimedb-cert-gen/ca.crtWARNING: This command is UNSTABLE and subject to breaking changes.
+
+Added trusted certificate from ../../../my/spacetimedb-cert-gen/ca.crt for a new TLS connection.
+Added trusted certificate from ../../../my/spacetimedb-cert-gen/ca.crt for a new TLS connection.
+{
+  "typespace": {
+    "types": [
+      {
+        "Product": {
+          "elements": [
+            {
+              "name": {
+                "some": "sender"
+              },
+              "algebraic_type": {
+                "Product": {
+                  "elements": [
+                    {
+                      "name": {
+                        "some": "__identity__"
+                      },
+                      "algebraic_type": {
+                        "U256": []
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": {
+                "some": "sent"
+              },
+              "algebraic_type": {
+                "Product": {
+                  "elements": [
+                    {
+                      "name": {
+                        "some": "__timestamp_micros_since_unix_epoch__"
+                      },
+                      "algebraic_type": {
+                        "I64": []
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": {
+                "some": "text"
+              },
+              "algebraic_type": {
+                "String": []
+              }
+            }
+          ]
+        }
+      },
+      {
+        "Product": {
+          "elements": [
+            {
+              "name": {
+                "some": "identity"
+              },
+              "algebraic_type": {
+                "Product": {
+                  "elements": [
+                    {
+                      "name": {
+                        "some": "__identity__"
+                      },
+                      "algebraic_type": {
+                        "U256": []
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": {
+                "some": "name"
+              },
+              "algebraic_type": {
+                "Sum": {
+                  "variants": [
+                    {
+                      "name": {
+                        "some": "some"
+                      },
+                      "algebraic_type": {
+                        "String": []
+                      }
+                    },
+                    {
+                      "name": {
+                        "some": "none"
+                      },
+                      "algebraic_type": {
+                        "Product": {
+                          "elements": []
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": {
+                "some": "online"
+              },
+              "algebraic_type": {
+                "Bool": []
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "tables": [
+    {
+      "name": "message",
+      "product_type_ref": 0,
+      "primary_key": [],
+      "indexes": [],
+      "constraints": [],
+      "sequences": [],
+      "schedule": {
+        "none": []
+      },
+      "table_type": {
+        "User": []
+      },
+      "table_access": {
+        "Public": []
+      }
+    },
+    {
+      "name": "user",
+      "product_type_ref": 1,
+      "primary_key": [
+        0
+      ],
+      "indexes": [
+        {
+          "name": {
+            "some": "user_identity_idx_btree"
+          },
+          "accessor_name": {
+            "some": "identity"
+          },
+          "algorithm": {
+            "BTree": [
+              0
+            ]
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "name": {
+            "some": "user_identity_key"
+          },
+          "data": {
+            "Unique": {
+              "columns": [
+                0
+              ]
+            }
+          }
+        }
+      ],
+      "sequences": [],
+      "schedule": {
+        "none": []
+      },
+      "table_type": {
+        "User": []
+      },
+      "table_access": {
+        "Public": []
+      }
+    }
+  ],
+  "reducers": [
+    {
+      "name": "identity_connected",
+      "params": {
+        "elements": []
+      },
+      "lifecycle": {
+        "some": {
+          "OnConnect": []
+        }
+      }
+    },
+    {
+      "name": "identity_disconnected",
+      "params": {
+        "elements": []
+      },
+      "lifecycle": {
+        "some": {
+          "OnDisconnect": []
+        }
+      }
+    },
+    {
+      "name": "init",
+      "params": {
+        "elements": []
+      },
+      "lifecycle": {
+        "some": {
+          "Init": []
+        }
+      }
+    },
+    {
+      "name": "send_message",
+      "params": {
+        "elements": [
+          {
+            "name": {
+              "some": "text"
+            },
+            "algebraic_type": {
+              "String": []
+            }
+          }
+        ]
+      },
+      "lifecycle": {
+        "none": []
+      }
+    },
+    {
+      "name": "set_name",
+      "params": {
+        "elements": [
+          {
+            "name": {
+              "some": "name"
+            },
+            "algebraic_type": {
+              "String": []
+            }
+          }
+        ]
+      },
+      "lifecycle": {
+        "none": []
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": {
+        "scope": [],
+        "name": "Message"
+      },
+      "ty": 0,
+      "custom_ordering": true
+    },
+    {
+      "name": {
+        "scope": [],
+        "name": "User"
+      },
+      "ty": 1,
+      "custom_ordering": true
+    }
+  ],
+  "misc_exports": [],
+  "row_level_security": []
+}
+```
+
+</details>
+
+```
+$ spacetime call quickstart-chat send_message "\"Hello from CLI\"" --cert ../../../my/spacetimedb-cert-gen/ca.crt
+WARNING: This command is UNSTABLE and subject to breaking changes.
+
+Added trusted certificate from ../../../my/spacetimedb-cert-gen/ca.crt for a new TLS connection.
+Added trusted certificate from ../../../my/spacetimedb-cert-gen/ca.crt for a new TLS connection.
+```
+```
+$ spacetime sql quickstart-chat "SELECT * FROM message" --cert ../../../my/spacetimedb-cert-gen/ca.crt
+WARNING: This command is UNSTABLE and subject to breaking changes.
+
+Added trusted certificate from ../../../my/spacetimedb-cert-gen/ca.crt for a new TLS connection.
+Added trusted certificate from ../../../my/spacetimedb-cert-gen/ca.crt for a new TLS connection.
+ sender                                                             | sent                             | text             
+--------------------------------------------------------------------+----------------------------------+------------------
+ 0xc2001e6a388eaebd8a6b1a9b587d2ea6e288e8e2332f9848c8f23c42bdf1ee23 | 2025-04-13T05:11:00.078287+00:00 | "message here"   
+ 0xc200ade7f794c9fcba8d5ed1bf5e81d187c1e386c27886e64b396e0dceb6c816 | 2025-04-13T17:26:15.511753+00:00 | "Hello from CLI" 
+```
   
 Can use some(TODO: make all relevant) cli commands that require server access by passing args `--cert ca.crt` or `--cert server.crt`, otherwise you'd have to have the public certificate of the CA(certificate authority that signed the server's public key) or of the target server in your cert root store (eg. /etc/ssl/ on linux).  
 
@@ -118,6 +424,7 @@ If you're accidentally going to connect via TLS to the plaintext server, or conn
   ... and now you won't have to wonder if there's something else you did wrong in your client.
 - plaintext client connecting to a TLS server:
   - start the spacetimedb standalone server in TLS mode:  
+    (assuming you're in the root of the repo, else adjust path to certs appropriately)  
     `spacetime start --edition standalone --listen-addr 127.0.0.1:3000 --ssl --cert ../spacetimedb-cert-gen/server.crt --key ../spacetimedb-cert-gen/server.key`
   - start a rust client from a different terminal and connect to the server in plaintext mode:  
     `cd ./crates/sdk/` (this is in SpacetimeDB repo)  

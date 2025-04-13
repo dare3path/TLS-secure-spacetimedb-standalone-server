@@ -3,9 +3,6 @@ Subcommands to Modify to add --cert arg(a pub cert to add to internal root store
 
 Here’s the list with a quick note on what each does and why it needs a server:
 
-    sql.rs
-    call.rs: Invokes a reducer—needs server to execute it.
-    describe.rs: Fetches database schema—queries the server.
     dns.rs: Manages DNS for a database—updates server config.
     energy.rs: Queries or sets energy usage—hits server metadata (useful even for non-Maincloud resource tracking).
     list.rs: Lists databases—queries server for identity’s databases.
@@ -13,7 +10,6 @@ Here’s the list with a quick note on what each does and why it needs a server:
     subscribe.rs: Subscribes to query updates—live server connection.
 
 ----------------
-dedup build_client(...), put it in util.rs ? or some common crate
 ----------------
 
 
