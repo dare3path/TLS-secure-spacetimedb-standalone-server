@@ -36,7 +36,21 @@ WARNING: This command is UNSTABLE and subject to breaking changes.
 ======
 You get a warning when using `spacetime login --server-issued-login server` that this `server` isn't the one that cli commands like `spacetime publish`(with no args) will use, but it's the 3 star default one in `spacetime server list` instead.
 ======
-
+These subcommands support --cert:
+spacetime server add
+spacetime server edit
+spacetime server fingerprint
+spacetime server ping
+spacetime publish
+spacetime login
+spacetime logs
+spacetime delete
+spacetime sql
+spacetime start  (this requires passing --key and --ssl also)
+======
+FIXME: the changes in config.rs are supremely hacky, since the original code disregarded protocol as uniquely identifying the server+proto in the list of `spacetime server list`, so there are functions that take only host:port and assume there's only one in the list where they can be two or more: one for each proto (http, https)
+//But seems this is so due to the inability to run more than one spacetimedb (standalone)server per user, since the .pid file is kept in /home/user/.local/share/spacetime/data/spacetime.pid for any/all running instances and thus prevents running more than 1 instance. Unless, --data-dir is specified, then can have multiple instances after all, hmm...
+======
 
 
 diff --git a/Cargo.lock b/Cargo.lock
@@ -431,21 +445,8 @@ index 5b15f068..75acd9a3 100644
   "futures",
   "glob",
   "itertools 0.12.1",
-diff --git a/Cargo.toml b/Cargo.toml
-index acd852f6..a9ffeab9 100644
---- a/Cargo.toml
-+++ b/Cargo.toml
-@@ -66,7 +66,7 @@ lto = "thin"
- 
- [profile.dev]
- opt-level = 0
--debug = true
-+debug = 1
- debug-assertions = true
- overflow-checks = true
- lto = false
 diff --git a/crates/cli/src/config.rs b/crates/cli/src/config.rs
-index 1e709b89..ca99c126 100644
+index 1e709b89..ebd5b4d3 100644
 --- a/crates/cli/src/config.rs
 +++ b/crates/cli/src/config.rs
 @@ -177,21 +177,59 @@ impl RawConfig {
@@ -491,13 +492,12 @@ index 1e709b89..ca99c126 100644
 +        for (i, cfg) in self.server_configs.iter().enumerate() {
 +            if cfg.nickname.as_deref() == Some(name_or_host) {
 +                return Ok(&mut self.server_configs[i]);
-+            }
+             }
 +            if cfg.host == name_or_host && protocol.map_or(true, |p| cfg.protocol == p) {
 +                indices.push(i);
 +                protocols.push(&cfg.protocol);
-             }
-         }
--        Err(no_such_server_error(name_or_host))
++            }
++        }
 +        match indices.len() {
 +            0 => Err(no_such_server_error(name_or_host)),
 +            1 => Ok(&mut self.server_configs[indices[0]]),
@@ -509,7 +509,8 @@ index 1e709b89..ca99c126 100644
 +                    protocols[1],
 +                    name_or_host
 +            )),
-+        }
+         }
+-        Err(no_such_server_error(name_or_host))
 +    }
 +    fn find_server_mut(&mut self, name_or_host: &str) -> anyhow::Result<&mut ServerConfig> {
 +        self.find_server_with_protocol_mut(name_or_host, None)
@@ -534,7 +535,7 @@ index 1e709b89..ca99c126 100644
          }
  
          self.server_configs.push(ServerConfig {
-@@ -271,39 +306,60 @@ impl RawConfig {
+@@ -271,47 +306,68 @@ impl RawConfig {
              .map(|cfg| cfg.protocol.as_ref())
      }
  
@@ -586,11 +587,11 @@ index 1e709b89..ca99c126 100644
 +                indices = vec![i];
 +                protocols = vec![&cfg.protocol];
 +                break; // Nickname is unique
-             }
++            }
 +            if cfg.host == server && protocol.map_or(true, |p| cfg.protocol == p) {
 +                indices.push(i);
 +                protocols.push(&cfg.protocol);
-+            }
+             }
 +        }
  
 -            return Ok(());
@@ -618,7 +619,43 @@ index 1e709b89..ca99c126 100644
      }
  
      /// Return the ECDSA public key in PEM format for the server named by `server`.
-@@ -371,7 +427,7 @@ Fetch the server's fingerprint with:
+     ///
+     /// Returns an `Err` if there is no such server configuration.
+     /// Returns `None` if the server configuration exists, but does not have a fingerprint saved.
+-    fn server_fingerprint(&self, server: &str) -> anyhow::Result<Option<&str>> {
+-        self.find_server(server)
++    fn server_fingerprint(&self, server: &str, protocol: Option<&str>) -> anyhow::Result<Option<&str>> {
++        self.find_server_with_protocol(server, protocol)
+             .with_context(|| {
+                 format!(
+                     "No saved fingerprint for server: {server}
+@@ -319,7 +375,7 @@ Fetch the server's fingerprint with:
+ \tspacetime server fingerprint -s {server}"
+                 )
+             })
+-            .map(|cfg| cfg.ecdsa_public_key.as_deref())
++        .map(|cfg| cfg.ecdsa_public_key.as_deref())
+     }
+ 
+     /// Return the ECDSA public key in PEM format for the default server.
+@@ -328,7 +384,7 @@ Fetch the server's fingerprint with:
+     /// Returns `None` if the server configuration exists, but does not have a fingerprint saved.
+     fn default_server_fingerprint(&self) -> anyhow::Result<Option<&str>> {
+         if let Some(server) = &self.default_server {
+-            self.server_fingerprint(server)
++            self.server_fingerprint(server, None)
+         } else {
+             Err(anyhow::anyhow!(NO_DEFAULT_SERVER_ERROR_MESSAGE))
+         }
+@@ -364,6 +420,7 @@ Fetch the server's fingerprint with:
+     pub fn edit_server(
+         &mut self,
+         server: &str,
++        old_protocol: Option<&str>,
+         new_nickname: Option<&str>,
+         new_host: Option<&str>,
+         new_protocol: Option<&str>,
+@@ -371,7 +428,7 @@ Fetch the server's fingerprint with:
          // Check if the new nickname or host name would introduce ambiguities between
          // server configurations.
          if let Some(new_nick) = new_nickname {
@@ -627,7 +664,7 @@ index 1e709b89..ca99c126 100644
                  anyhow::bail!(
                      "Nickname {} conflicts with saved configuration for server {}: {}://{}",
                      new_nick,
-@@ -382,7 +438,7 @@ Fetch the server's fingerprint with:
+@@ -382,7 +439,7 @@ Fetch the server's fingerprint with:
              }
          }
          if let Some(new_host) = new_host {
@@ -636,16 +673,16 @@ index 1e709b89..ca99c126 100644
                  anyhow::bail!(
                      "Host {} conflicts with saved configuration for server {}: {}://{}",
                      new_host,
-@@ -393,7 +449,7 @@ Fetch the server's fingerprint with:
+@@ -393,7 +450,7 @@ Fetch the server's fingerprint with:
              }
          }
  
 -        let cfg = self.find_server_mut(server)?;
-+        let cfg = self.find_server_with_protocol_mut(server, None)?;
++        let cfg = self.find_server_with_protocol_mut(server, old_protocol)?;
          let old_nickname = if let Some(new_nickname) = new_nickname {
              std::mem::replace(&mut cfg.nickname, Some(new_nickname.to_string()))
          } else {
-@@ -509,8 +565,8 @@ impl Config {
+@@ -509,8 +566,8 @@ impl Config {
      /// Callers should call `Config::save` afterwards
      /// to ensure modifications are persisted to disk.
      pub fn set_default_server(&mut self, nickname_or_host_or_url: &str) -> anyhow::Result<()> {
@@ -656,7 +693,7 @@ index 1e709b89..ca99c126 100644
      }
  
      /// Delete a `ServerConfig` from the home configuration.
-@@ -522,8 +578,8 @@ impl Config {
+@@ -522,8 +579,8 @@ impl Config {
      /// Callers should call `Config::save` afterwards
      /// to ensure modifications are persisted to disk.
      pub fn remove_server(&mut self, nickname_or_host_or_url: &str) -> anyhow::Result<()> {
@@ -667,6 +704,41 @@ index 1e709b89..ca99c126 100644
      }
  
      /// Get a URL for the specified `server`.
+@@ -734,7 +791,7 @@ impl Config {
+     }
+ 
+     pub fn server_decoding_key(&self, server: Option<&str>) -> anyhow::Result<DecodingKey> {
+-        self.server_fingerprint(server).and_then(|fing| {
++        self.server_fingerprint(server, None).and_then(|fing| {
+             if let Some(fing) = fing {
+                 DecodingKey::from_ec_pem(fing.as_bytes()).with_context(|| {
+                     format!(
+@@ -762,10 +819,11 @@ Update the server's fingerprint with:
+         }
+     }
+ 
+-    pub fn server_fingerprint(&self, server: Option<&str>) -> anyhow::Result<Option<&str>> {
++    pub fn server_fingerprint(&self, server: Option<&str>, protocol: Option<&str>) -> anyhow::Result<Option<&str>> {
+         if let Some(server) = server {
+-            let (host, _) = host_or_url_to_host_and_protocol(server);
+-            self.home.server_fingerprint(host)
++            let (host, _proto) = host_or_url_to_host_and_protocol(server);
++            //FIXME: if _proto exists and one was specified as arg too... or if none as arg, take _proto?
++            self.home.server_fingerprint(host, protocol)
+         } else {
+             self.home.default_server_fingerprint()
+         }
+@@ -787,8 +845,8 @@ Update the server's fingerprint with:
+         new_host: Option<&str>,
+         new_protocol: Option<&str>,
+     ) -> anyhow::Result<(Option<String>, Option<String>, Option<String>)> {
+-        let (host, _) = host_or_url_to_host_and_protocol(server);
+-        self.home.edit_server(host, new_nickname, new_host, new_protocol)
++        let (host, oldproto) = host_or_url_to_host_and_protocol(server);
++        self.home.edit_server(host, oldproto, new_nickname, new_host, new_protocol)
+     }
+ 
+     pub fn delete_server_fingerprint(&mut self, server: Option<&str>) -> anyhow::Result<()> {
 diff --git a/crates/cli/src/subcommands/delete.rs b/crates/cli/src/subcommands/delete.rs
 index e0d5c756..10e49baa 100644
 --- a/crates/cli/src/subcommands/delete.rs
@@ -720,7 +792,7 @@ index e0d5c756..10e49baa 100644
      let builder = add_auth_header_opt(builder, &auth_header);
      builder.send().await?.error_for_status()?;
 diff --git a/crates/cli/src/subcommands/login.rs b/crates/cli/src/subcommands/login.rs
-index 8e2568b4..db5944df 100644
+index 8e2568b4..1ac9e62f 100644
 --- a/crates/cli/src/subcommands/login.rs
 +++ b/crates/cli/src/subcommands/login.rs
 @@ -31,6 +31,14 @@ pub fn cli() -> Command {
@@ -752,7 +824,7 @@ index 8e2568b4..db5944df 100644
 +    // so let's warn, but allow this behavior.
      let server_issued_login: Option<&String> = args.get_one("server");
 +    if let Some(server) = server_issued_login {
-+        println!("WARNING: the server that you specified here as '{}' isn't the one that will be used by commands like 'spacetime publish' but instead it's the one listed on 'spacetime server list' as the default (3 stars) that will be used, eg. 127.0.0.1:3000 if you haven't manually added any via 'spacetime server add'.\n",server);//extra new line
++        eprintln!("WARNING: the server that you specified here as '{}' isn't the one that will be used by commands like 'spacetime publish' but instead it's the one listed on 'spacetime server list' as the default (3 stars) that will be used, eg. 127.0.0.1:3000 if you haven't manually added any via 'spacetime server add'.\n",server);//extra new line
 +    }//if
  
      if let Some(token) = spacetimedb_token {
@@ -964,6 +1036,239 @@ index 65cdf343..80a8068f 100644
          println!("You are about to publish to a non-local server: {}", server_address);
          if !y_or_n(force, "Are you sure you want to proceed?")? {
              println!("Aborting");
+diff --git a/crates/cli/src/subcommands/server.rs b/crates/cli/src/subcommands/server.rs
+index 611919a6..3f8c6bcf 100644
+--- a/crates/cli/src/subcommands/server.rs
++++ b/crates/cli/src/subcommands/server.rs
+@@ -10,6 +10,7 @@ use tabled::{
+     settings::{object::Columns, Alignment, Modify, Style},
+     Table, Tabled,
+ };
++use std::path::Path;
+ 
+ pub fn cli() -> Command {
+     Command::new("server")
+@@ -53,6 +54,14 @@ fn get_subcommands() -> Vec<Command> {
+                     .help("Skip fingerprinting the server")
+                     .long("no-fingerprint")
+                     .action(ArgAction::SetTrue),
++            )
++            .arg(
++                clap::Arg::new("cert")
++                .long("cert")
++                .help("Path to a PEM-encoded CA certificate for TLS verification, ie. treated as if it were in the cert trust store.")
++                .value_name("FILE")
++                .value_parser(clap::value_parser!(std::path::PathBuf))
++                .required(false),
+             ),
+         Command::new("remove")
+             .about("Remove a saved server configuration")
+@@ -69,6 +78,14 @@ fn get_subcommands() -> Vec<Command> {
+                     .required(true)
+                     .help("The nickname, host name or URL of the server"),
+             )
++            .arg(
++                clap::Arg::new("cert")
++                .long("cert")
++                .help("Path to a PEM-encoded CA certificate for TLS verification, ie. treated as if it were in the cert trust store.")
++                .value_name("FILE")
++                .value_parser(clap::value_parser!(std::path::PathBuf))
++                .required(false),
++            )
+             .arg(common_args::yes()),
+         Command::new("ping")
+             .about("Checks to see if a SpacetimeDB host is online")
+@@ -76,6 +93,14 @@ fn get_subcommands() -> Vec<Command> {
+                 Arg::new("server")
+                     .required(true)
+                     .help("The nickname, host name or URL of the server to ping"),
++            )
++            .arg(
++                clap::Arg::new("cert")
++                .long("cert")
++                .help("Path to a PEM-encoded CA certificate for TLS verification, ie. treated as if it were in the cert trust store.")
++                .value_name("FILE")
++                .value_parser(clap::value_parser!(std::path::PathBuf))
++                .required(false),
+             ),
+         Command::new("edit")
+             .about("Update a saved server's nickname, host name or protocol")
+@@ -100,6 +125,14 @@ fn get_subcommands() -> Vec<Command> {
+                     .long("no-fingerprint")
+                     .action(ArgAction::SetTrue),
+             )
++            .arg(
++                clap::Arg::new("cert")
++                .long("cert")
++                .help("Path to a PEM-encoded CA certificate for TLS verification, ie. treated as if it were in the cert trust store.")
++                .value_name("FILE")
++                .value_parser(clap::value_parser!(std::path::PathBuf))
++                .required(false),
++            )
+             .arg(common_args::yes()),
+         Command::new("clear")
+             .about("Deletes all data from all local databases")
+@@ -195,6 +228,11 @@ pub async fn exec_add(mut config: Config, args: &ArgMatches) -> Result<(), anyho
+     let nickname = args.get_one::<String>("name");
+     let default = *args.get_one::<bool>("default").unwrap();
+     let no_fingerprint = *args.get_one::<bool>("no-fingerprint").unwrap();
++    let cert_path = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
++
++    if no_fingerprint && cert_path.is_some() {
++        eprintln!("WARNING: --cert ignored while using --no-fingerprint");
++    }
+ 
+     let (host, protocol) = host_or_url_to_host_and_protocol(url);
+     let protocol = protocol.ok_or_else(|| anyhow::anyhow!("Invalid url: {}", url))?;
+@@ -204,12 +242,13 @@ pub async fn exec_add(mut config: Config, args: &ArgMatches) -> Result<(), anyho
+     let fingerprint = if no_fingerprint {
+         None
+     } else {
+-        let fingerprint = spacetime_server_fingerprint(url).await.with_context(|| {
++        let fingerprint = spacetime_server_fingerprint(url, cert_path).await.with_context(|| {
+             format!(
+                 "Unable to retrieve fingerprint for server: {url}
+ Is the server running?
+ Add a server without retrieving its fingerprint with:
+-\tspacetime server add --url {url} --no-fingerprint",
++\tspacetime server add --url {url} --no-fingerprint
++or provide a trusted --cert."
+             )
+         })?;
+         println!("For server {}, got fingerprint:\n{}", url, fingerprint);
+@@ -224,7 +263,6 @@ Add a server without retrieving its fingerprint with:
+ 
+     println!("Host: {}", host);
+     println!("Protocol: {}", protocol);
+-
+     config.save();
+ 
+     Ok(())
+@@ -240,25 +278,45 @@ pub async fn exec_remove(mut config: Config, args: &ArgMatches) -> Result<(), an
+     Ok(())
+ }
+ 
+-async fn update_server_fingerprint(config: &mut Config, server: Option<&str>) -> Result<bool, anyhow::Error> {
+-    let url = config.get_host_url(server)?;
+-    let nick_or_host = config.server_nick_or_host(server)?;
+-    let new_fing = spacetime_server_fingerprint(&url)
++async fn update_server_fingerprint(
++    config: &mut Config,
++    server: Option<&str>,
++    cert_path: Option<&Path>,
++    protocol: Option<&str>,
++) -> Result<bool, anyhow::Error> {
++    let (host, proto, nick_or_host) = match server {
++        Some(s) => {
++            let (h, p) = host_or_url_to_host_and_protocol(s);
++            let p = p.or(protocol).ok_or_else(|| {
++                anyhow::anyhow!(
++                    "Protocol not specified and server {} is ambiguous",
++                    h
++                )
++            })?;
++            (h.to_string(), p.to_string(), s.to_string())
++        }
++        None => {
++            let url = config.get_host_url(None)?;
++            let (h, p) = host_or_url_to_host_and_protocol(&url);
++            let p = p.ok_or_else(|| anyhow::anyhow!("Default server has no protocol"))?;
++            let nick = config.server_nick_or_host(None)?.to_string();
++            (h.to_string(), p.to_string(), nick)
++        }
++    };
++    let url = format!("{}://{}", proto, host);
++    let new_fing = spacetime_server_fingerprint(&url, cert_path)
+         .await
+         .context("Error fetching server fingerprint")?;
+-    if let Some(saved_fing) = config.server_fingerprint(server)? {
++    if let Some(saved_fing) = config.server_fingerprint(Some(&host), Some(&proto))? {
+         if saved_fing == new_fing {
+             println!("Fingerprint is unchanged for server {}:\n{}", nick_or_host, saved_fing);
+-
+             Ok(false)
+         } else {
+             println!(
+                 "Fingerprint has changed for server {}.\nWas:\n{}\nNew:\n{}",
+                 nick_or_host, saved_fing, new_fing
+             );
+-
+-            config.set_server_fingerprint(server, new_fing)?;
+-
++            config.set_server_fingerprint(Some(&host), new_fing)?;
+             Ok(true)
+         }
+     } else {
+@@ -266,9 +324,7 @@ async fn update_server_fingerprint(config: &mut Config, server: Option<&str>) ->
+             "No saved fingerprint for server {}. New fingerprint:\n{}",
+             nick_or_host, new_fing
+         );
+-
+-        config.set_server_fingerprint(server, new_fing)?;
+-
++        config.set_server_fingerprint(Some(&host), new_fing)?;
+         Ok(true)
+     }
+ }
+@@ -276,8 +332,10 @@ async fn update_server_fingerprint(config: &mut Config, server: Option<&str>) ->
+ pub async fn exec_fingerprint(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::Error> {
+     let server = args.get_one::<String>("server").unwrap().as_str();
+     let force = args.get_flag("force");
++    let cert_path = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
+ 
+-    if update_server_fingerprint(&mut config, Some(server)).await? {
++    let (host, protocol) = host_or_url_to_host_and_protocol(server);
++    if update_server_fingerprint(&mut config, Some(host), cert_path, protocol).await? {
+         if !y_or_n(force, "Continue?")? {
+             anyhow::bail!("Aborted");
+         }
+@@ -291,8 +349,27 @@ pub async fn exec_fingerprint(mut config: Config, args: &ArgMatches) -> Result<(
+ pub async fn exec_ping(config: Config, args: &ArgMatches) -> Result<(), anyhow::Error> {
+     let server = args.get_one::<String>("server").unwrap().as_str();
+     let url = config.get_host_url(Some(server))?;
++    let cert_path = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
++
++    async fn build_client(cert_path: Option<&std::path::Path>) -> anyhow::Result<reqwest::Client> {
++        let mut client_builder = reqwest::Client::builder();
++
++        if let Some(path) = cert_path {
++            let cert_pem = tokio::fs::read_to_string(path)
++                .await
++                .map_err(|e| anyhow::anyhow!("Failed to read certificate file {} err: {}", path.display(), e))?;
++            let cert = reqwest::Certificate::from_pem(cert_pem.as_bytes())
++                .map_err(|e| anyhow::anyhow!("Failed to parse certificate file {} err: {}", path.display(), e))?;
++            client_builder = client_builder.add_root_certificate(cert);
++        }
++
++        client_builder
++            .build()
++            .map_err(|e| anyhow::anyhow!("Failed to build client with cert {:?} err: {}", cert_path, e))
++    }
+ 
+-    let builder = reqwest::Client::new().get(format!("{}/v1/ping", url).as_str());
++    let client = build_client(cert_path).await?;
++    let builder = client.get(format!("{}/v1/ping", url).as_str());
+     let response = builder.send().await?;
+ 
+     match response.status() {
+@@ -342,6 +419,7 @@ pub async fn exec_edit(mut config: Config, args: &ArgMatches) -> Result<(), anyh
+         println!("Changing host from {} to {}", old_host, new_host);
+     }
+     if let (Some(new_proto), Some(old_proto)) = (new_proto, old_proto) {
++        //FIXME: Changing protocol from https to https
+         println!("Changing protocol from {} to {}", old_proto, new_proto);
+     }
+ 
+@@ -351,7 +429,8 @@ pub async fn exec_edit(mut config: Config, args: &ArgMatches) -> Result<(), anyh
+         if no_fingerprint {
+             config.delete_server_fingerprint(Some(&new_url))?;
+         } else {
+-            update_server_fingerprint(&mut config, Some(&new_url)).await?;
++            let cert_path = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
++            update_server_fingerprint(&mut config, Some(&new_url), cert_path, new_proto).await?;
+         }
+     }
+ 
 diff --git a/crates/cli/src/subcommands/sql.rs b/crates/cli/src/subcommands/sql.rs
 index 8e6cac17..252cc39f 100644
 --- a/crates/cli/src/subcommands/sql.rs
@@ -997,7 +1302,7 @@ index 8e6cac17..252cc39f 100644
      })
  }
 diff --git a/crates/cli/src/util.rs b/crates/cli/src/util.rs
-index 20e0591c..24f6730c 100644
+index 20e0591c..1fcfa214 100644
 --- a/crates/cli/src/util.rs
 +++ b/crates/cli/src/util.rs
 @@ -17,11 +17,12 @@ pub async fn database_identity(
@@ -1025,7 +1330,30 @@ index 20e0591c..24f6730c 100644
      let url = format!("{}/v1/database/{}/identity", config.get_host_url(server)?, domain);
      let Some(res) = client.get(url).send().await?.found() else {
          return Ok(None);
-@@ -314,9 +316,9 @@ pub async fn get_login_token_or_log_in(
+@@ -123,8 +125,20 @@ pub async fn spacetime_dns(
+         .context("identity endpoint did not return an identity")
+ }
+ 
+-pub async fn spacetime_server_fingerprint(url: &str) -> anyhow::Result<String> {
+-    let builder = reqwest::Client::new().get(format!("{}/v1/identity/public-key", url).as_str());
++pub async fn spacetime_server_fingerprint(url: &str, cert_path: Option<&Path>) -> anyhow::Result<String> {
++    let mut builder = reqwest::Client::builder();
++    if let Some(path) = cert_path {
++        if !url.starts_with("https") {
++            eprintln!("WARNING: Non-https url '{url}' but --cert was specified.");
++        }
++        let cert_pem = std::fs::read_to_string(path)
++            .with_context(|| format!("Failed to read certificate file: {}", path.display()))?;
++        let cert = reqwest::Certificate::from_pem(cert_pem.as_bytes())
++            .map_err(|e| anyhow::anyhow!("Invalid certificate: {}", e))?;
++        builder = builder.add_root_certificate(cert);
++    }
++    let client = builder.build().map_err(|e| anyhow::anyhow!("Failed to build client: {}", e))?;
++    let builder = client.get(format!("{}/v1/identity/public-key", url).as_str());
+     let res = builder.send().await?.error_for_status()?;
+     let fingerprint = res.text().await?;
+     Ok(fingerprint)
+@@ -314,9 +328,9 @@ pub async fn get_login_token_or_log_in(
  
      if full_login {
          let host = Url::parse(DEFAULT_AUTH_HOST)?;
@@ -1305,7 +1633,7 @@ index 5207edf4..61a191de 100644
  dirs.workspace = true
  futures.workspace = true
 diff --git a/crates/standalone/src/subcommands/start.rs b/crates/standalone/src/subcommands/start.rs
-index d74267c6..29d0cb33 100644
+index d74267c6..89740907 100644
 --- a/crates/standalone/src/subcommands/start.rs
 +++ b/crates/standalone/src/subcommands/start.rs
 @@ -13,7 +13,7 @@ use spacetimedb_client_api::routes::database::DatabaseRoutes;
@@ -1327,7 +1655,7 @@ index d74267c6..29d0cb33 100644
      // .after_help("Run `spacetime help start` for more detailed information.")
  }
  
-@@ -143,10 +146,35 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
+@@ -143,13 +146,39 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
      let extra = axum::Router::new().nest("/health", spacetimedb_client_api::routes::health::router());
      let service = router(&ctx, db_routes, extra).with_state(ctx);
  
@@ -1367,3 +1695,7 @@ index d74267c6..29d0cb33 100644
      Ok(())
  }
  
++#[allow(dead_code)]
+ fn banner() {
+     println!(
+         r#"
