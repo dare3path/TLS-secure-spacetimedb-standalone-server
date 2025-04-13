@@ -66,6 +66,30 @@ message2 here
 c2001e6a388eaebd: message2 here
 ```
 (Ctrl+D(+Z on Windows) to exit, or Ctrl+C)  
+- other cli commands you can run, in another terminal:  
+```
+$ spacetime logs quickstart-chat --cert ../../../my/spacetimedb-cert-gen/ca.crt --follow
+2025-04-13T05:10:45.901825Z  INFO: spacetimedb: Creating table `message`
+2025-04-13T05:10:45.902506Z  INFO: spacetimedb: Creating table `user`
+2025-04-13T05:10:45.904265Z  INFO: spacetimedb: Invoking `init` reducer
+2025-04-13T05:10:45.906885Z  INFO: spacetimedb: Database initialized
+```
+```
+$ spacetime server ping slocal --cert ../../../my/spacetimedb-cert-gen/ca.crt
+WARNING: This command is UNSTABLE and subject to breaking changes.
+
+Server is online: https://127.0.0.1:3000
+```
+```
+$ spacetime server fingerprint slocal --cert ../../../my/spacetimedb-cert-gen/ca.crt
+WARNING: This command is UNSTABLE and subject to breaking changes.
+
+Fingerprint is unchanged for server slocal:
+-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEfwAqvSbxMUZKdCsvzr9tdQJOhuG/
+24jZ+oMN18FS6Py9CDNzGeAzu2kqjlybtpYRqkchYqv8o44khX9TZlhyWA==
+-----END PUBLIC KEY-----
+```
   
 Can use some(TODO: make all relevant) cli commands that require server access by passing args `--cert ca.crt` or `--cert server.crt`, otherwise you'd have to have the public certificate of the CA(certificate authority that signed the server's public key) or of the target server in your cert root store (eg. /etc/ssl/ on linux).  
 
