@@ -14,12 +14,15 @@ the spacetime standalone server can listen for incoming TLS connections if you u
 
 clients already could connect to it via TLS, however the server's cert must've been signed by a trusted(in root store) CA (certificate authority) already, however you can use --cert as mentioned below:
 ======
-You can use --cert for most cli commands(including the quickstart-chat example) to add a public certificate to trust (ie. as if it were part of the cert trust store) which can thus be either the server's public key, or the CA's public key which is the CA that signed the server's public key. This way, client knows the server's public key is trusted and will connect rather than fail with untrusted signature.
+You can use --cert for most cli commands(including the rust quickstart-chat example) to add a public certificate to trust (ie. as if it were part of the cert trust store) which can thus be either the server's public key, or the CA's public key which is the CA that signed the server's public key. This way, client knows the server's public key is trusted and will connect rather than fail with untrusted signature.
 ======
-These subcommands consider the protocol as a unique identifier along with the host and port:
+These subcommands consider the protocol(eg. https or http) as a unique identifier along with the host and port:
 $ spacetime server set-default
 $ spacetime server add
 $ spacetime server remove
+$ spacetime server edit
+$ spacetime server fingerprint
+$ spacetime server ping
 
 ie. you can have these:
 
