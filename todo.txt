@@ -8,6 +8,8 @@ make sure all manner of 'cargo test' tests pass!
 ----------------
 remove commented out code
 ----------------
+change some added println/eprintln into log::debug! ?
+----------------
 
 
 
