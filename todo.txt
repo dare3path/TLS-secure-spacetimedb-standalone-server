@@ -6,7 +6,6 @@ Here’s the list with a quick note on what each does and why it needs a server:
     dns.rs: Manages DNS for a database—updates server config.
     energy.rs: Queries or sets energy usage—hits server metadata (useful even for non-Maincloud resource tracking).
     list.rs: Lists databases—queries server for identity’s databases.
-    repl.rs: Interactive SQL/reducer REPL—connects to server for live queries.
 
 ----------------
 crates in Cargo.toml should probably be moved to workspace so they're same version (when updated) in all places.
