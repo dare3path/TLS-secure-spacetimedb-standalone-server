@@ -396,6 +396,35 @@ Added trusted certificate from ../../../my/spacetimedb-cert-gen/ca.crt for a new
  0xc2001e6a388eaebd8a6b1a9b587d2ea6e288e8e2332f9848c8f23c42bdf1ee23 | 2025-04-13T05:11:00.078287+00:00 | "message here"   
  0xc200ade7f794c9fcba8d5ed1bf5e81d187c1e386c27886e64b396e0dceb6c816 | 2025-04-13T17:26:15.511753+00:00 | "Hello from CLI" 
 ```
+this adds an alias for the database name(just like renaming projects on github):  
+```
+$ spacetime rename --to foo quickstart-chat --cert ../../../my/spacetimedb-cert-gen/ca.crt
+Added trusted certificate from ../../../my/spacetimedb-cert-gen/ca.crt for a new TLS connection.
+Domain set to foo for identity c200ba48494b35ab616cea275571f895d0ac6bf6e16b391238bf59ec65d1410d.
+
+$ spacetime rename --to foo2 foo --cert ../../../my/spacetimedb-cert-gen/ca.crt
+Added trusted certificate from ../../../my/spacetimedb-cert-gen/ca.crt for a new TLS connection.
+Domain set to foo2 for identity c200ba48494b35ab616cea275571f895d0ac6bf6e16b391238bf59ec65d1410d.
+
+$ spacetime list --cert ../../../my/spacetimedb-cert-gen/ca.crt
+WARNING: This command is UNSTABLE and subject to breaking changes.
+
+Added trusted certificate from ../../../my/spacetimedb-cert-gen/ca.crt for a new TLS connection.
+Associated database identities for c200ade7f794c9fcba8d5ed1bf5e81d187c1e386c27886e64b396e0dceb6c816:
+
+ db_identity                                                      
+------------------------------------------------------------------
+ c200d126731c13032f25f55f69caefb7457542c39c8f5b4279ddd10f299ee677 
+ c200d854a8dff255f9a034f26ae374ffcee30dc6428dbffe6c628a655b9670ae 
+ c200ba48494b35ab616cea275571f895d0ac6bf6e16b391238bf59ec65d1410d
+```
+```
+$ spacetime energy balance --cert ../my/spacetimedb-cert-gen/ca.crt
+WARNING: This command is UNSTABLE and subject to breaking changes.
+
+Added trusted certificate from ../my/spacetimedb-cert-gen/ca.crt for a new TLS connection.
+{"balance":"0"}
+```
   
 Can use some(TODO: make all relevant) cli commands that require server access by passing args `--cert ca.crt` or `--cert server.crt`, otherwise you'd have to have the public certificate of the CA(certificate authority that signed the server's public key) or of the target server in your cert root store (eg. /etc/ssl/ on linux).  
 

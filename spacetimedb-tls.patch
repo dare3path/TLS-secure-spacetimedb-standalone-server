@@ -32,6 +32,9 @@ spacetime describe
 spacetime subscribe
 spacetime call
 spacetime start  (this requires passing --key and --ssl also)
+spacetime rename
+spacetime list
+spacetime energy balance
 ======
 These subcommands consider the protocol(eg. https or http) as a unique identifier along with the host and port:
 $ spacetime server set-default
@@ -942,6 +945,99 @@ index 6f1759ff..30e789f5 100644
      let api = ClientApi::new(conn);
  
      let module_def = api.module_def().await?;
+diff --git a/crates/cli/src/subcommands/dns.rs b/crates/cli/src/subcommands/dns.rs
+index 03f4e96b..14cd7ec1 100644
+--- a/crates/cli/src/subcommands/dns.rs
++++ b/crates/cli/src/subcommands/dns.rs
+@@ -20,6 +20,14 @@ pub fn cli() -> Command {
+                 .required(true)
+                 .help("The database identity to rename"),
+         )
++        .arg(
++            Arg::new("cert")
++            .long("cert")
++            .value_name("FILE")
++            .action(clap::ArgAction::Set)
++            .value_parser(clap::value_parser!(std::path::PathBuf))
++            .help("Path to the server’s self-signed certificate or CA certificate (PEM format) to trust"),
++        )
+         .arg(common_args::server().help("The nickname, host name or URL of the server on which to set the name"))
+         .arg(common_args::yes())
+         .after_help("Run `spacetime rename --help` for more detailed information.\n")
+@@ -33,10 +41,12 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+     let token = get_login_token_or_log_in(&mut config, server, !force).await?;
+     let identity = decode_identity(&token)?;
+     let auth_header = get_auth_header(&mut config, false, server, !force).await?;
++    let cert: Option<&std::path::Path> = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
+ 
+     let domain: DomainName = domain.parse()?;
+ 
+-    let builder = reqwest::Client::new()
++    let client = crate::util::build_client(cert).await?;
++    let builder = client
+         .post(format!(
+             "{}/v1/database/{database_identity}/names",
+             config.get_host_url(server)?
+diff --git a/crates/cli/src/subcommands/energy.rs b/crates/cli/src/subcommands/energy.rs
+index 0d4249e2..61cfd9de 100644
+--- a/crates/cli/src/subcommands/energy.rs
++++ b/crates/cli/src/subcommands/energy.rs
+@@ -30,6 +30,14 @@ fn get_energy_subcommands() -> Vec<clap::Command> {
+             common_args::server()
+                 .help("The nickname, host name or URL of the server from which to request balance information"),
+         )
++        .arg(
++            clap::Arg::new("cert")
++            .long("cert")
++            .value_name("FILE")
++            .action(clap::ArgAction::Set)
++            .value_parser(clap::value_parser!(std::path::PathBuf))
++            .help("Path to the server’s self-signed certificate or CA certificate (PEM format) to trust"),
++        )
+         .arg(common_args::yes())]
+ }
+ 
+@@ -58,8 +66,10 @@ async fn exec_status(mut config: Config, args: &ArgMatches) -> Result<(), anyhow
+         let token = get_login_token_or_log_in(&mut config, server, !force).await?;
+         util::decode_identity(&token)?
+     };
++    let cert: Option<&std::path::Path> = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
++    let client = crate::util::build_client(cert).await?;
+ 
+-    let status = reqwest::Client::new()
++    let status = client
+         .get(format!("{}/v1/energy/{}", config.get_host_url(server)?, identity))
+         .send()
+         .await?
+diff --git a/crates/cli/src/subcommands/list.rs b/crates/cli/src/subcommands/list.rs
+index 8080af3c..79d04151 100644
+--- a/crates/cli/src/subcommands/list.rs
++++ b/crates/cli/src/subcommands/list.rs
+@@ -19,6 +19,14 @@ pub fn cli() -> Command {
+             "Lists the databases attached to an identity. {}",
+             UNSTABLE_WARNING
+         ))
++        .arg(
++            clap::Arg::new("cert")
++            .long("cert")
++            .value_name("FILE")
++            .action(clap::ArgAction::Set)
++            .value_parser(clap::value_parser!(std::path::PathBuf))
++            .help("Path to the server’s self-signed certificate or CA certificate (PEM format) to trust"),
++        )
+         .arg(common_args::server().help("The nickname, host name or URL of the server from which to list databases"))
+         .arg(common_args::yes())
+ }
+@@ -42,7 +50,8 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+     let token = get_login_token_or_log_in(&mut config, server, !force).await?;
+     let identity = util::decode_identity(&token)?;
+ 
+-    let client = reqwest::Client::new();
++    let cert: Option<&std::path::Path> = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
++    let client = util::build_client(cert).await?;
+     let res = client
+         .get(format!(
+             "{}/v1/identity/{}/databases",
 diff --git a/crates/cli/src/subcommands/login.rs b/crates/cli/src/subcommands/login.rs
 index 8e2568b4..298febc5 100644
 --- a/crates/cli/src/subcommands/login.rs
