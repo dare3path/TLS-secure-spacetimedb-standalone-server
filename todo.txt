@@ -10,6 +10,8 @@ remove commented out code
 ----------------
 change some added println/eprintln into log::debug! ?
 ----------------
+FIXME: Changing protocol from https to https
+----------------
 
 
 

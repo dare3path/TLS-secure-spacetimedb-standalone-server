@@ -503,7 +503,7 @@ index 591d80a3..eca986ec 100644
  [target.'cfg(not(target_env = "msvc"))'.dependencies]
  tikv-jemallocator = { workspace = true }
 diff --git a/crates/cli/src/api.rs b/crates/cli/src/api.rs
-index d40b03ee..c345621c 100644
+index d40b03ee..544a80b6 100644
 --- a/crates/cli/src/api.rs
 +++ b/crates/cli/src/api.rs
 @@ -9,6 +9,8 @@ use spacetimedb_lib::de::serde::DeserializeWrapper;
@@ -533,7 +533,7 @@ index d40b03ee..c345621c 100644
 +        tokio::runtime::Handle::current()
 +            .block_on(util::configure_tls(con.cert_path.as_deref()))
 +    })
-+    .unwrap(); // Changed: Block on configure_tls
++    .unwrap();
 +    builder = builder.user_agent(APP_USER_AGENT);
  
      if let Some(auth_header) = con.auth_header.to_header() {
@@ -548,7 +548,7 @@ index d40b03ee..c345621c 100644
  
  pub struct ClientApi {
 diff --git a/crates/cli/src/config.rs b/crates/cli/src/config.rs
-index 1e709b89..ebd5b4d3 100644
+index 1e709b89..5bf0cf5e 100644
 --- a/crates/cli/src/config.rs
 +++ b/crates/cli/src/config.rs
 @@ -177,21 +177,59 @@ impl RawConfig {
@@ -825,7 +825,7 @@ index 1e709b89..ebd5b4d3 100644
 -            let (host, _) = host_or_url_to_host_and_protocol(server);
 -            self.home.server_fingerprint(host)
 +            let (host, _proto) = host_or_url_to_host_and_protocol(server);
-+            //FIXME: if _proto exists and one was specified as arg too... or if none as arg, take _proto?
++            //FIXME: if _proto exists and one was specified as arg too... or if None as arg, take _proto?
 +            self.home.server_fingerprint(host, protocol)
          } else {
              self.home.default_server_fingerprint()
@@ -1039,7 +1039,7 @@ index 8080af3c..79d04151 100644
          .get(format!(
              "{}/v1/identity/{}/databases",
 diff --git a/crates/cli/src/subcommands/login.rs b/crates/cli/src/subcommands/login.rs
-index 8e2568b4..298febc5 100644
+index 8e2568b4..71972490 100644
 --- a/crates/cli/src/subcommands/login.rs
 +++ b/crates/cli/src/subcommands/login.rs
 @@ -1,4 +1,4 @@
@@ -1082,7 +1082,7 @@ index 8e2568b4..298febc5 100644
  
      if let Some(token) = spacetimedb_token {
          config.set_spacetimedb_token(token.clone());
-@@ -61,11 +80,14 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+@@ -61,11 +80,12 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
          return Ok(());
      }
  
@@ -1090,8 +1090,6 @@ index 8e2568b4..298febc5 100644
      if let Some(server) = server_issued_login {
          let host = Url::parse(&config.get_host_url(Some(server))?)?;
 -        spacetimedb_token_cached(&mut config, &host, true).await?;
-+        //config.protocol=host.scheme();
-+        //eprintln!("!!!!! scheme: '{:#?}', host: '{}', config: '{:#?}'", config.protocol(Some(server)), host, config);
 +        spacetimedb_token_cached(&mut config, &host, true, cert).await?;
      } else {
 -        spacetimedb_token_cached(&mut config, &host, false).await?;
@@ -1099,7 +1097,7 @@ index 8e2568b4..298febc5 100644
      }
  
      Ok(())
-@@ -98,7 +120,7 @@ async fn exec_show(config: Config, args: &ArgMatches) -> Result<(), anyhow::Erro
+@@ -98,7 +118,7 @@ async fn exec_show(config: Config, args: &ArgMatches) -> Result<(), anyhow::Erro
      Ok(())
  }
  
@@ -1108,7 +1106,7 @@ index 8e2568b4..298febc5 100644
      // Currently, this token does not expire. However, it will at some point in the future. When that happens,
      // this code will need to happen before any request to a spacetimedb server, rather than at the end of the login flow here.
      if let Some(token) = config.spacetimedb_token() {
-@@ -106,17 +128,19 @@ async fn spacetimedb_token_cached(config: &mut Config, host: &Url, direct_login:
+@@ -106,17 +126,19 @@ async fn spacetimedb_token_cached(config: &mut Config, host: &Url, direct_login:
          println!("If you want to log out, use spacetime logout.");
          Ok(token.clone())
      } else {
@@ -1131,7 +1129,7 @@ index 8e2568b4..298febc5 100644
          let session_token = web_login_cached(config, host).await?;
          spacetimedb_login(host, &session_token).await?
      };
-@@ -271,8 +295,9 @@ struct LocalLoginResponse {
+@@ -271,8 +293,9 @@ struct LocalLoginResponse {
      pub token: String,
  }
  
@@ -1193,7 +1191,7 @@ index c92a6f01..95bf76b3 100644
      let mut res = builder.query(&query_parms).send().await?;
      let status = res.status();
 diff --git a/crates/cli/src/subcommands/publish.rs b/crates/cli/src/subcommands/publish.rs
-index 65cdf343..0df34d46 100644
+index 65cdf343..45b089fa 100644
 --- a/crates/cli/src/subcommands/publish.rs
 +++ b/crates/cli/src/subcommands/publish.rs
 @@ -9,7 +9,7 @@ use std::path::PathBuf;
@@ -1238,7 +1236,7 @@ index 65cdf343..0df34d46 100644
  
      // If a domain or identity was provided, we should locally make sure it looks correct and
      let mut builder = if let Some(name_or_identity) = name_or_identity {
-@@ -119,7 +129,17 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+@@ -119,7 +129,16 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
          let url = Url::parse(&database_host)?;
          url.host_str().unwrap_or("<default>").to_string()
      };
@@ -1247,12 +1245,11 @@ index 65cdf343..0df34d46 100644
 +    use std::net::IpAddr;
 +    fn is_local_address(address: &str) -> bool {
 +        if let Ok(IpAddr::V4(ipv4)) = address.parse::<IpAddr>() {
-+            ipv4.is_loopback() // Check if the address is a loopback address
++            ipv4.is_loopback() // true if this is `127.0.0.0/8`
 +        } else {
-+            address.eq_ignore_ascii_case("localhost") // or 'false'
++            address.eq_ignore_ascii_case("localhost")
 +        }
 +    }
-+    //if server_address != "localhost" && server_address != "127.0.0.1" {
 +    if !is_local_address(&server_address) {
          println!("You are about to publish to a non-local server: {}", server_address);
          if !y_or_n(force, "Are you sure you want to proceed?")? {
@@ -1488,7 +1485,7 @@ index 611919a6..c1d74a00 100644
      }
  
 diff --git a/crates/cli/src/subcommands/sql.rs b/crates/cli/src/subcommands/sql.rs
-index 8e6cac17..49f5c724 100644
+index 8e6cac17..630a5753 100644
 --- a/crates/cli/src/subcommands/sql.rs
 +++ b/crates/cli/src/subcommands/sql.rs
 @@ -1,16 +1,18 @@
@@ -1540,7 +1537,7 @@ index 8e6cac17..49f5c724 100644
 -        database_identity: database_identity(&config, database_name_or_identity, server).await?,
 +        database_identity: database_identity(&config, database_name_or_identity, server, &client).await?,
          database: database_name_or_identity.to_string(),
-+        cert_path: cert_path.map(PathBuf::from), // Added: Store cert_path
++        cert_path: cert_path.map(PathBuf::from),
      })
  }
  
@@ -1623,7 +1620,7 @@ index 6eb2039c..30bde3c6 100644
      let task = async {
          subscribe(&mut ws, queries.cloned().map(Into::into).collect()).await?;
 diff --git a/crates/cli/src/util.rs b/crates/cli/src/util.rs
-index 20e0591c..1b63f2ba 100644
+index 20e0591c..6181206d 100644
 --- a/crates/cli/src/util.rs
 +++ b/crates/cli/src/util.rs
 @@ -9,6 +9,7 @@ use std::path::Path;
@@ -1653,7 +1650,7 @@ index 20e0591c..1b63f2ba 100644
  }
  
 +
-+pub async fn configure_tls(cert_path: Option<&Path>) -> anyhow::Result<reqwest::ClientBuilder> { // Added: TLS config
++pub async fn configure_tls(cert_path: Option<&Path>) -> anyhow::Result<reqwest::ClientBuilder> {
 +    let mut client_builder = reqwest::Client::builder();
 +    if let Some(cert) = load_root_cert(cert_path).await? {
 +        let path:String=cert_path.map_or("<unexpected empty path>".to_string(), |p| p.display().to_string());
@@ -1671,7 +1668,7 @@ index 20e0591c..1b63f2ba 100644
 +        .context(format!("Failed to build client with cert {:?}", cert_path))
 +}
 +
-+pub async fn build_client(cert_path: Option<&Path>) -> anyhow::Result<reqwest::Client> { // Changed: Use sub-functions
++pub async fn build_client(cert_path: Option<&Path>) -> anyhow::Result<reqwest::Client> {
 +    let builder = configure_tls(cert_path).await?;
 +    build_client_with_context(builder, cert_path)
 +}
@@ -1731,40 +1728,35 @@ index 417af799..39916843 100644
  # For the 'proptest' feature.
  proptest = { workspace = true, optional = true }
 diff --git a/crates/lib/src/lib.rs b/crates/lib/src/lib.rs
-index f1963db6..41cc9373 100644
+index f1963db6..64ff0ef6 100644
 --- a/crates/lib/src/lib.rs
 +++ b/crates/lib/src/lib.rs
-@@ -384,3 +384,47 @@ pub fn resolved_type_via_v9<T: SpacetimeType>() -> AlgebraicType {
+@@ -384,3 +384,42 @@ pub fn resolved_type_via_v9<T: SpacetimeType>() -> AlgebraicType {
          .resolve_refs()
          .expect("recursive types not supported")
  }
 +
 +pub async fn load_root_cert(cert_path: Option<&std::path::Path>) -> anyhow::Result<Option<native_tls::Certificate>> {
 +    if let Some(path) = cert_path {
-+//        let cert_pem = tokio::fs::read_to_string(path)
-+//            .await
-+//            .context(format!("Failed to read certificate file: {}", path.display()))?;
-+//        let cert = native_tls::Certificate::from_pem(cert_pem.as_bytes())
-+//            .context(format!("Failed to parse PEM certificate: {}", path.display()))?;
 +        // Open file asynchronously
 +        use tokio::fs::File;
 +        use tokio::io::{AsyncReadExt, BufReader};
 +        let file = File::open(path)
 +            .await
 +            .context(format!("Failed to open certificate file: {}", path.display()))?;
-+        
++
 +        // Limit read to 1MiB (1,048,576 bytes)
 +        // otherwise you'd pass /dev/zero and oom
 +        const MAX_CERT_SIZE: u64 = 1_048_576;
 +        let mut reader = BufReader::new(file).take(MAX_CERT_SIZE);
 +        let mut cert_pem = String::new();
-+        
++
 +        // Read up to 1MiB into cert_pem
 +        reader
 +            .read_to_string(&mut cert_pem)
 +            .await
 +            .context(format!("Failed to read certificate file: {}", path.display()))?;
-+        
++
 +        // Check if we hit the limit (more data remains)
 +        if reader.limit() == 0 && reader.get_ref().get_ref().metadata().await.is_ok() {
 +            anyhow::bail!("Certificate file too large (>1MiB): {}", path.display());
@@ -1798,7 +1790,7 @@ index 9daa2a98..2d95cbbe 100644
  [dev-dependencies]
  # for quickstart-chat and cursive-chat examples
 diff --git a/crates/sdk/examples/quickstart-chat/main.rs b/crates/sdk/examples/quickstart-chat/main.rs
-index e04ff9cb..e2b0a5cf 100644
+index e04ff9cb..25cc5d5b 100644
 --- a/crates/sdk/examples/quickstart-chat/main.rs
 +++ b/crates/sdk/examples/quickstart-chat/main.rs
 @@ -5,11 +5,20 @@ use module_bindings::*;
@@ -1824,7 +1816,7 @@ index e04ff9cb..e2b0a5cf 100644
  
      // Register callbacks to run in response to database events.
      register_callbacks(&ctx);
-@@ -26,15 +35,21 @@ fn main() {
+@@ -26,14 +35,19 @@ fn main() {
  
  // ## Connect to the database
  
@@ -1832,25 +1824,22 @@ index e04ff9cb..e2b0a5cf 100644
 -const HOST: &str = "http://localhost:3000";
 +/// The host and port, without scheme, of the SpacetimeDB instance hosting our chat module.
 +const HOST_PORT: &str = "localhost:3000";
-+//const HOST_PORT: &str = "127.1.2.3:6543";
  
  /// The module name we chose when we published our module.
  const DB_NAME: &str = "quickstart-chat";
  
  /// Load credentials from a file and connect to the database.
 -fn connect_to_db() -> DbConnection {
--    DbConnection::builder()
 +fn connect_to_db(cert_path: Option<PathBuf>) -> DbConnection {
 +    // ### Construct URI with scheme based on cert presence
 +    let scheme = if cert_path.is_some() { "https" } else { "http" };
 +    let uri = format!("{}://{}", scheme, HOST_PORT);
 +
 +//    let mut builder=
-+        DbConnection::builder()
+     DbConnection::builder()
          // Register our `on_connect` callback, which will save our auth token.
          .on_connect(on_connected)
-         // Register our `on_connect_error` callback, which will print a message, then exit the process.
-@@ -48,7 +63,17 @@ fn connect_to_db() -> DbConnection {
+@@ -48,7 +62,17 @@ fn connect_to_db() -> DbConnection {
          // Set the database name we chose when we called `spacetime publish`.
          .with_module_name(DB_NAME)
          // Set the URI of the SpacetimeDB host that's running our database.
@@ -1870,7 +1859,7 @@ index e04ff9cb..e2b0a5cf 100644
          .build()
          .expect("Failed to connect")
 diff --git a/crates/sdk/src/db_connection.rs b/crates/sdk/src/db_connection.rs
-index e1e4133e..9c6a300b 100644
+index e1e4133e..fbc2dd57 100644
 --- a/crates/sdk/src/db_connection.rs
 +++ b/crates/sdk/src/db_connection.rs
 @@ -748,6 +748,8 @@ pub struct DbConnectionBuilder<M: SpacetimeModule> {
@@ -1898,14 +1887,10 @@ index e1e4133e..9c6a300b 100644
              ))
          })
          .map_err(|source| crate::Error::FailedToConnect {
-@@ -892,6 +896,15 @@ but you must call one of them, or else the connection will never progress.
+@@ -892,6 +896,11 @@ but you must call one of them, or else the connection will never progress.
          self
      }
  
-+//    pub fn with_trusted_cert(mut self, cert: impl Into<std::path::PathBuf>) -> Self {
-+//        self.trusted_cert = Some(cert.into());
-+//        self
-+//    }
 +    pub fn with_trusted_cert(mut self, cert: Option<impl Into<std::path::PathBuf>>) -> Self {
 +        self.trusted_cert = cert.map(|c| c.into());
 +        self
@@ -1915,15 +1900,14 @@ index e1e4133e..9c6a300b 100644
      pub fn with_module_name(mut self, name_or_identity: impl Into<String>) -> Self {
          self.module_name = Some(name_or_identity.into());
 diff --git a/crates/sdk/src/websocket.rs b/crates/sdk/src/websocket.rs
-index 436520d5..a4002f9f 100644
+index 436520d5..90148b84 100644
 --- a/crates/sdk/src/websocket.rs
 +++ b/crates/sdk/src/websocket.rs
-@@ -21,10 +21,11 @@ use tokio::task::JoinHandle;
+@@ -21,10 +21,10 @@ use tokio::task::JoinHandle;
  use tokio::time::Instant;
  use tokio::{net::TcpStream, runtime};
  use tokio_tungstenite::{
 -    connect_async_with_config,
-+    //connect_async_with_config,
      tungstenite::client::IntoClientRequest,
      tungstenite::protocol::{Message as WebSocketMessage, WebSocketConfig},
 -    MaybeTlsStream, WebSocketStream,
@@ -1932,7 +1916,7 @@ index 436520d5..a4002f9f 100644
  };
  
  use crate::metrics::CLIENT_METRICS;
-@@ -90,6 +91,18 @@ pub(crate) struct WsConnection {
+@@ -90,6 +90,18 @@ pub(crate) struct WsConnection {
      sock: WebSocketStream<MaybeTlsStream<TcpStream>>,
  }
  
@@ -1951,11 +1935,11 @@ index 436520d5..a4002f9f 100644
  fn parse_scheme(scheme: Option<Scheme>) -> Result<Scheme, UriError> {
      Ok(match scheme {
          Some(s) => match s.as_str() {
-@@ -207,19 +220,70 @@ impl WsConnection {
+@@ -207,19 +219,68 @@ impl WsConnection {
          token: Option<&str>,
          connection_id: ConnectionId,
          params: WsParams,
-+        trusted_cert: Option<&std::path::PathBuf>, // Changed to borrow PathBuf
++        trusted_cert: Option<&std::path::PathBuf>,
      ) -> Result<Self, WsError> {
          let req = make_request(host, db_name, token, connection_id, params)?;
  
@@ -1964,7 +1948,6 @@ index 436520d5..a4002f9f 100644
  
 -        let (sock, _): (WebSocketStream<MaybeTlsStream<TcpStream>>, _) = connect_async_with_config(
 +        let host = uri.clone(); //shadow, and it's thus wss:// not https://
-+        //use native_tls::Certificate;
 +        use native_tls::TlsConnector;
 +        use std::sync::Arc;
 +        use tokio::net::TcpStream;
@@ -1976,8 +1959,7 @@ index 436520d5..a4002f9f 100644
 +        let port = host.port_u16().ok_or(WsError::UriError(UriError::InvalidUri {
 +            source: Arc::new("No port specified in URI".parse::<Uri>().unwrap_err().into()),
 +        }))?;
-+        if port == 0 {
-+            //|| port > 65535 {
++        if port == 0 { // || port > 65535 { //it's u16
 +            return Err(WsError::UriError(UriError::InvalidUri {
 +                source: Arc::new(format!("Invalid port: {}", port).parse::<Uri>().unwrap_err().into()),
 +            }));
@@ -2008,7 +1990,7 @@ index 436520d5..a4002f9f 100644
 +            Some(Connector::NativeTls(tls_connector))
 +        } else {
 +            //This is probably just ws:// ie. from http:// aka plaintext non-TLS
-+            //println!("!!! Unexpected non-wss:// scheme, is: {}", uri);
++            //eprintln!("!!! Unexpected non-wss:// scheme, is: {}", uri);
 +            None
 +        };
 +
@@ -2024,7 +2006,7 @@ index 436520d5..a4002f9f 100644
          )
          .await
          .map_err(|source| WsError::Tungstenite {
-@@ -231,7 +295,7 @@ impl WsConnection {
+@@ -231,7 +292,7 @@ impl WsConnection {
              connection_id,
              sock,
          })
@@ -2054,19 +2036,18 @@ index 5207edf4..61a191de 100644
  dirs.workspace = true
  futures.workspace = true
 diff --git a/crates/standalone/src/subcommands/start.rs b/crates/standalone/src/subcommands/start.rs
-index d74267c6..29d0cb33 100644
+index d74267c6..dfb5d999 100644
 --- a/crates/standalone/src/subcommands/start.rs
 +++ b/crates/standalone/src/subcommands/start.rs
-@@ -13,7 +13,7 @@ use spacetimedb_client_api::routes::database::DatabaseRoutes;
+@@ -13,7 +13,6 @@ use spacetimedb_client_api::routes::database::DatabaseRoutes;
  use spacetimedb_client_api::routes::router;
  use spacetimedb_paths::cli::{PrivKeyPath, PubKeyPath};
  use spacetimedb_paths::server::ServerDataDir;
 -use tokio::net::TcpListener;
-+//use tokio::net::TcpListener;
  
  pub fn cli() -> clap::Command {
      clap::Command::new("start")
-@@ -67,6 +67,9 @@ pub fn cli() -> clap::Command {
+@@ -67,6 +66,9 @@ pub fn cli() -> clap::Command {
          .arg(Arg::new("in_memory").long("in-memory").action(SetTrue).help(
              "If specified the database will run entirely in memory. After the process exits all data will be lost.",
          ))
@@ -2076,7 +2057,7 @@ index d74267c6..29d0cb33 100644
      // .after_help("Run `spacetime help start` for more detailed information.")
  }
  
-@@ -143,10 +146,35 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
+@@ -143,10 +145,31 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
      let extra = axum::Router::new().nest("/health", spacetimedb_client_api::routes::health::router());
      let service = router(&ctx, db_routes, extra).with_state(ctx);
  
@@ -2084,10 +2065,6 @@ index d74267c6..29d0cb33 100644
 -    socket2::SockRef::from(&tcp).set_nodelay(true)?;
 -    log::debug!("Starting SpacetimeDB listening on {}", tcp.local_addr().unwrap());
 -    axum::serve(tcp, service).await?;
-+//    let tcp = TcpListener::bind(listen_addr).await?;
-+//    socket2::SockRef::from(&tcp).set_nodelay(true)?;
-+//    log::debug!("Starting SpacetimeDB listening on {}", tcp.local_addr().unwrap());
-+//    axum::serve(tcp, service).await?;
 +    use std::net::SocketAddr;
 +    let addr: SocketAddr = listen_addr.parse()?;
 +    if args.get_flag("ssl") {
@@ -2095,8 +2072,8 @@ index d74267c6..29d0cb33 100644
 +        let key_path = args.get_one::<String>("key").context("Missing --key for SSL")?;
 +        // Install the default CryptoProvider at the start of the function
 +        // This only needs to happen once per process, so it's safe to call here
-+        use rustls::crypto::ring::default_provider;  // Add this
-+        use rustls::crypto::CryptoProvider;          // Add this
++        use rustls::crypto::ring::default_provider;
++        use rustls::crypto::CryptoProvider;
 +        CryptoProvider::install_default(default_provider())
 +            .expect("Failed to install default CryptoProvider");
 +
