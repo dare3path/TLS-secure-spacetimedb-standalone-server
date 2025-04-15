@@ -461,7 +461,15 @@ If you're accidentally going to connect via TLS to the plaintext server, or conn
   - The error seen on client is:  
 `thread 'main' panicked at crates/sdk/examples/quickstart-chat/main.rs:79:10:`  
 `Failed to connect: FailedToConnect { source: InternalError { message: "Failed to initiate WebSocket connection", cause: Some(Tungstenite { uri: ws://localhost:3000/v1/database/quickstart-chat/subscribe?connection_id=e54407d34c5347e362ea91ef6f03fbc3&compression=Brotli, source: Protocol(HttparseError(Version)) }) } }`  
-  - the meaning of the error is: your client is using plaintext connection to a TLS server, either both should be plaintext or both should be TLS. The server doesn't, currently, know how to handle both types on the same port.
+  - the meaning of the error is: your client is using plaintext connection to a TLS server, either both should be plaintext or both should be TLS. The server doesn't, currently, know how to handle both types on the same port.  
+  
+Verify that the server is accepting only TLS 1.3 and not TLS 1.2:  
+  - this should work:  
+  `openssl s_client -connect 127.0.0.1:3000 -tls1_3`  
+  - this should fail:  
+  `openssl s_client -connect 127.0.0.1:3000 -tls1_2`  
+  - and to make sure the certificate verification isn't ignored (ie. fail if verify fails):  
+  `openssl s_client -connect 127.0.0.1:3000 -tls1_3 -verify_return_error -CAfile ../spacetimedb-cert-gen/ca.crt`  
   
 ## Credits
 Made with xAI's Grok3 and Grok2 because I don't know much of how to Rust or SpacetimeDB. So if things seem wrong, or suboptimal, they might be.
