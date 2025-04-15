@@ -1,4 +1,4 @@
-Adds ability to listen as https via TLS 1.3 for SpacetimeDB standalone server with self-signed or CA-signed certs, and allows clients(rust, cli) to pass --cert with a trusted cert (like server's self-signed cert or CA's public key) to not fail signature check.
+Adds ability to listen as https via TLS 1.3 for SpacetimeDB standalone server with self-signed or CA-signed certs, and allows clients(rust, cli) to pass --cert with a trusted cert (like server's self-signed cert or CA's public cert) to not fail signature check.
 
 Currently limited to TLS 1.3 only, but can be changed in source code to allow TLS 1.2 also.
 
@@ -20,9 +20,9 @@ the spacetime standalone server can listen for incoming TLS connections if you u
 
 clients already could connect to it via TLS, however the server's cert must've been signed by a trusted(in root store) CA (certificate authority) already, however you can use --cert as mentioned below:
 ======
-You can use --cert for most cli commands(including the rust quickstart-chat example) to add a public certificate to trust (ie. as if it were part of the cert trust store) which can thus be either the server's public key, or the CA's public key which is the CA that signed the server's public key. This way, the client knows the server's public key is trusted and will connect successfully rather than fail with untrusted signature.
+You can use --cert for most cli commands(including the rust quickstart-chat example) to add a public certificate to trust (ie. as if it were part of the cert trust store) which can thus be either the server's public cert, or the CA's public cert which is the CA that signed the server's public cert. This way, the client knows the server's public cert is trusted and will connect successfully rather than fail with untrusted signature.
 ======
-These subcommands support --cert (to add a trusted cert file(pub key) to the client to can authenticate the server):
+These subcommands support --cert (to add a trusted cert file(public) to the client to can authenticate the server):
 spacetime server add
 spacetime server edit
 spacetime server fingerprint
