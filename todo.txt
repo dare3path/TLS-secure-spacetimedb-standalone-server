@@ -12,7 +12,6 @@ change some added println/eprintln into log::debug! ?
 ----------------
 FIXME: Changing protocol from https to https
 ----------------
-server can still oom when loading certs like /dev/zero
 ----------------
 
 
