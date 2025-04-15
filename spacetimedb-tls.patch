@@ -1970,7 +1970,7 @@ index 5207edf4..beef27b7 100644
  dirs.workspace = true
  futures.workspace = true
 diff --git a/crates/standalone/src/subcommands/start.rs b/crates/standalone/src/subcommands/start.rs
-index d74267c6..3200e7ff 100644
+index d74267c6..fd3e2ae3 100644
 --- a/crates/standalone/src/subcommands/start.rs
 +++ b/crates/standalone/src/subcommands/start.rs
 @@ -1,4 +1,9 @@
@@ -1991,7 +1991,7 @@ index d74267c6..3200e7ff 100644
  
  pub fn cli() -> clap::Command {
      clap::Command::new("start")
-@@ -67,9 +71,135 @@ pub fn cli() -> clap::Command {
+@@ -67,9 +71,136 @@ pub fn cli() -> clap::Command {
          .arg(Arg::new("in_memory").long("in-memory").action(SetTrue).help(
              "If specified the database will run entirely in memory. After the process exits all data will be lost.",
          ))
@@ -1999,12 +1999,12 @@ index d74267c6..3200e7ff 100644
 +        .arg(
 +            spacetimedb_lib::cert()
 +            .requires("ssl")
-+            .help("--cert server.crt: The server sends this to clients during the TLS handshake. ie. server's public key, which if it's self-signed then this is the file that you pass to clients via --cert when talking to the server from a client(or the cli), or if signed by a local CA then pass that CA's pub cert to your clients instead, in order to can trust this server from a client connection. Otherwise, you don't have to pass anything to clients if this cert was signed by a public CA like Let's Encrypt.")
++            .help("--cert server.crt: The server sends this to clients during the TLS handshake. ie. server's certificate which contains its public key, which if it's self-signed then this is the file that you must pass to clients via --cert when talking to the server from a client(or the cli), or if signed by a local CA then pass that CA's cert to your clients instead, in order to can trust this server from a client connection. Otherwise, you don't have to pass anything to clients if this cert was signed by a public CA like Let's Encrypt.")
 +        )
 +        .arg(Arg::new("key").long("key").requires("ssl").value_name("FILE")
 +            .action(clap::ArgAction::Set)
 +            .value_parser(clap::value_parser!(PathBuf))
-+            .help("--key server.key: The server keeps this private to decrypt and sign responses. ie. the server's private key"))
++            .help("--key server.key: The server's private key used to decrypt and sign responses."))
      // .after_help("Run `spacetime help start` for more detailed information.")
  }
  
@@ -2044,10 +2044,11 @@ index d74267c6..3200e7ff 100644
 +    let certs: Vec<CertificateDer<'static>> = rustls_pemfile::certs(&mut std::io::Cursor::new(data))
 +        .collect::<Result<Vec<_>, _>>()
 +        .map_err(|e| anyhow::anyhow!("Failed to parse certificates from {}: {:?}", file_path.display(), e))?;
-+    if certs.is_empty() {
-+        return Err(anyhow::anyhow!("No certificates found in file {}", file_path.display()));
++    match certs.len() {
++        0 => Err(anyhow::anyhow!("No certificates found in file {}", file_path.display())),
++        1 => Ok(certs),
++        _ => Err(anyhow::anyhow!("Multiple certificates found in file {}; only one certificate is expected.", file_path.display())),
 +    }
-+    Ok(certs)
 +}
 +
 +/// Loads a private key from a PEM file.
@@ -2056,11 +2057,11 @@ index d74267c6..3200e7ff 100644
 +    let keys: Vec<PrivatePkcs8KeyDer<'static>> = rustls_pemfile::pkcs8_private_keys(&mut std::io::Cursor::new(data))
 +        .collect::<Result<Vec<_>, _>>()
 +        .map_err(|e| anyhow::anyhow!("Failed to parse private keys from {}: {:?}", file_path.display(), e))?;
-+    let key = keys
-+        .into_iter()
-+        .next()
-+        .ok_or_else(|| anyhow::anyhow!("No private key found in file {}", file_path.display()))?;
-+    Ok(PrivateKeyDer::Pkcs8(key))
++    match keys.len() {
++        0 => Err(anyhow::anyhow!("No private key found in file {}", file_path.display())),
++        1 => Ok(PrivateKeyDer::Pkcs8(keys.into_iter().next().unwrap())),
++        _ => Err(anyhow::anyhow!("Multiple private keys found in file {}; only one private key is expected.", file_path.display())),
++    }
 +}
 +
 +/// Creates a custom CryptoProvider with specific cipher suites.
@@ -2127,7 +2128,7 @@ index d74267c6..3200e7ff 100644
  pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
      let listen_addr = args.get_one::<String>("listen_addr").unwrap();
      let cert_dir = args.get_one::<spacetimedb_paths::cli::ConfigDir>("jwt_key_dir");
-@@ -143,10 +273,49 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
+@@ -143,10 +274,49 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
      let extra = axum::Router::new().nest("/health", spacetimedb_client_api::routes::health::router());
      let service = router(&ctx, db_routes, extra).with_state(ctx);
  
