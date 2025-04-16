@@ -471,6 +471,27 @@ Verify that the server is accepting only TLS 1.3 and not TLS 1.2:
   - and to make sure the certificate verification isn't ignored (ie. fail if verify fails):  
   `openssl s_client -connect 127.0.0.1:3000 -tls1_3 -verify_return_error -CAfile ../spacetimedb-cert-gen/ca.crt`  
   
+In Arch Linux, at least, since this uses openssl under the hood, you can temporarily use a different cert trust store by setting environment variable `SSL_CERT_DIR`, or even a specific file bundle by setting env. var. `SSL_CERT_FILE`, before running the program (server or client(s)), as per openssl [docs](https://docs.openssl.org/3.5/man3/SSL_CTX_load_verify_locations/#description).  
+For example:
+  - make a temporary trust store:  
+```
+mkdir /tmp/custom_trust_store
+cp /path/to/serverSS.crt /tmp/custom_trust_store/
+cp /path/to/ca.crt /tmp/custom_trust_store/
+c_rehash /tmp/custom_trust_store
+```
+This creates files like `/tmp/custom_trust_store/123abcde.0` linking to your certificates, which OpenSSL uses for trust verification.  
+`c_rehash` is from `openssl` package (on Arch Linux)  
+```
+export SSL_CERT_DIR=/tmp/custom_trust_store
+```
+or, alternatively: `export SSL_CERT_FILE=/path/to/ca.crt` or to `serverSS.crt`(but not `server.crt` which is signed by the CA and can only be verified via `ca.crt`, but you can concat `server.crt` and `ca.crt` into `bundle.crt` via `cat` and point to it here and it will work then)  
+Now you can run any client:  
+```
+cargo run --example quickstart-chat
+```
+this shouldn't complain anymore about the issuer.  
+
 ## Credits
 Made with xAI's Grok3 and Grok2 because I don't know much of how to Rust or SpacetimeDB. So if things seem wrong, or suboptimal, they might be.
 
