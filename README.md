@@ -491,6 +491,7 @@ Now you can run any client:
 cargo run --example quickstart-chat
 ```
 this shouldn't complain anymore about the issuer.  
+Also see `man 1 trust` if you want to affect the system trust store via the `trust` command (it's from `p11-kit` Arch Linux package) but note that the env. variables mentioned above have no effect on it (try `trust list`)  
 
 ## Credits
 Made with xAI's Grok3 and Grok2 because I don't know much of how to Rust or SpacetimeDB. So if things seem wrong, or suboptimal, they might be.
