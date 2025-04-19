@@ -13,6 +13,8 @@ change some added println/eprintln into log::debug! ?
 FIXME: Changing protocol from https to https
 ----------------
 add mTLS (TLS client auth via client certs) - it's done just needs testing (rust client and server seem to work so far, tested)
+
+add it in the main patch! currently it's in ./mTLS.patch
 ----------------
 make sure the args depends on each other properly
 ----------------
