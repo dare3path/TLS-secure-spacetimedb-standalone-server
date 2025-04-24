@@ -86,7 +86,7 @@ so if that jwt isn't enough for you, then you want this mTLS patch, perhaps in a
 
 
 diff --git a/Cargo.lock b/Cargo.lock
-index f9d50525f..4e556fa3b 100644
+index f9d50525f..1c6b2b76d 100644
 --- a/Cargo.lock
 +++ b/Cargo.lock
 @@ -194,6 +194,12 @@ dependencies = [
@@ -399,14 +399,15 @@ index f9d50525f..4e556fa3b 100644
   "hyper-util",
   "native-tls",
   "tokio",
-@@ -2397,16 +2575,15 @@ dependencies = [
+@@ -2397,16 +2575,17 @@ dependencies = [
  
  [[package]]
  name = "hyper-util"
 -version = "0.1.10"
--source = "registry+https://github.com/rust-lang/crates.io-index"
++version = "0.1.11"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
 -checksum = "df2dcfbe0677734ab2f3ffa7fa7bfd4706bfdc1ef393f2ee30184aed67e631b4"
-+version = "0.1.12"
++checksum = "497bbc33a26fdd4af9ed9c70d63f61cf56a938375fbb32df34db9b1cd6d643f2"
  dependencies = [
   "bytes",
   "futures-channel",
@@ -419,7 +420,7 @@ index f9d50525f..4e556fa3b 100644
   "pin-project-lite",
   "socket2",
   "tokio",
-@@ -2901,6 +3078,12 @@ version = "1.5.0"
+@@ -2901,6 +3080,12 @@ version = "1.5.0"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
  
@@ -432,7 +433,7 @@ index f9d50525f..4e556fa3b 100644
  [[package]]
  name = "leb128"
  version = "0.2.5"
-@@ -2909,9 +3092,19 @@ checksum = "884e2677b40cc8c339eaefcb701c32ef1fd2493d71118dc0ca4b6a736c93bd67"
+@@ -2909,9 +3094,19 @@ checksum = "884e2677b40cc8c339eaefcb701c32ef1fd2493d71118dc0ca4b6a736c93bd67"
  
  [[package]]
  name = "libc"
@@ -454,7 +455,7 @@ index f9d50525f..4e556fa3b 100644
  
  [[package]]
  name = "libm"
-@@ -3128,6 +3321,12 @@ version = "0.3.17"
+@@ -3128,6 +3323,12 @@ version = "0.3.17"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
  
@@ -467,7 +468,7 @@ index f9d50525f..4e556fa3b 100644
  [[package]]
  name = "miniz_oxide"
  version = "0.8.0"
-@@ -3182,7 +3381,7 @@ dependencies = [
+@@ -3182,7 +3383,7 @@ dependencies = [
   "openssl-probe",
   "openssl-sys",
   "schannel",
@@ -476,7 +477,7 @@ index f9d50525f..4e556fa3b 100644
   "security-framework-sys",
   "tempfile",
  ]
-@@ -3219,6 +3418,16 @@ version = "0.2.0"
+@@ -3219,6 +3420,16 @@ version = "0.2.0"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451"
  
@@ -493,7 +494,7 @@ index f9d50525f..4e556fa3b 100644
  [[package]]
  name = "nu-ansi-term"
  version = "0.46.0"
-@@ -3390,6 +3599,15 @@ dependencies = [
+@@ -3390,6 +3601,15 @@ dependencies = [
   "memchr",
  ]
  
@@ -509,7 +510,7 @@ index f9d50525f..4e556fa3b 100644
  [[package]]
  name = "once_cell"
  version = "1.20.2"
-@@ -3817,6 +4035,16 @@ dependencies = [
+@@ -3817,6 +4037,16 @@ dependencies = [
   "yansi",
  ]
  
@@ -526,7 +527,7 @@ index f9d50525f..4e556fa3b 100644
  [[package]]
  name = "proc-macro-crate"
  version = "3.2.0"
-@@ -4221,7 +4449,7 @@ checksum = "12908dbeb234370af84d0579b9f68258a0f67e201412dd9a2814e6f45b2fc0f0"
+@@ -4221,7 +4451,7 @@ checksum = "12908dbeb234370af84d0579b9f68258a0f67e201412dd9a2814e6f45b2fc0f0"
  dependencies = [
   "hashbrown 0.14.5",
   "log",
@@ -535,7 +536,7 @@ index f9d50525f..4e556fa3b 100644
   "slice-group-by",
   "smallvec",
  ]
-@@ -4343,7 +4571,7 @@ dependencies = [
+@@ -4343,7 +4573,7 @@ dependencies = [
   "http 1.1.0",
   "http-body 1.0.1",
   "http-body-util",
@@ -544,7 +545,7 @@ index f9d50525f..4e556fa3b 100644
   "hyper-rustls",
   "hyper-tls 0.6.0",
   "hyper-util",
-@@ -4475,6 +4703,12 @@ version = "0.1.24"
+@@ -4475,6 +4705,12 @@ version = "0.1.24"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "719b953e2095829ee67db738b3bfa9fa368c94900df327b3f07fe6e794d2fe1f"
  
@@ -557,7 +558,7 @@ index f9d50525f..4e556fa3b 100644
  [[package]]
  name = "rustc-hash"
  version = "2.0.0"
-@@ -4490,6 +4724,15 @@ dependencies = [
+@@ -4490,6 +4726,15 @@ dependencies = [
   "semver",
  ]
  
@@ -573,7 +574,7 @@ index f9d50525f..4e556fa3b 100644
  [[package]]
  name = "rustix"
  version = "0.38.40"
-@@ -4505,17 +4748,32 @@ dependencies = [
+@@ -4505,17 +4750,32 @@ dependencies = [
  
  [[package]]
  name = "rustls"
@@ -608,7 +609,7 @@ index f9d50525f..4e556fa3b 100644
  [[package]]
  name = "rustls-pemfile"
  version = "1.0.4"
-@@ -4536,16 +4794,17 @@ dependencies = [
+@@ -4536,16 +4796,17 @@ dependencies = [
  
  [[package]]
  name = "rustls-pki-types"
@@ -630,7 +631,7 @@ index f9d50525f..4e556fa3b 100644
   "ring",
   "rustls-pki-types",
   "untrusted",
-@@ -4673,11 +4932,24 @@ dependencies = [
+@@ -4673,11 +4934,24 @@ dependencies = [
   "security-framework-sys",
  ]
  
@@ -657,7 +658,7 @@ index f9d50525f..4e556fa3b 100644
  dependencies = [
   "core-foundation-sys",
   "libc",
-@@ -4993,9 +5265,9 @@ dependencies = [
+@@ -4993,9 +5267,9 @@ dependencies = [
  
  [[package]]
  name = "socket2"
@@ -669,7 +670,7 @@ index f9d50525f..4e556fa3b 100644
  dependencies = [
   "libc",
   "windows-sys 0.52.0",
-@@ -5121,7 +5393,7 @@ dependencies = [
+@@ -5121,7 +5395,7 @@ dependencies = [
   "duct",
   "email_address",
   "flate2",
@@ -678,7 +679,7 @@ index f9d50525f..4e556fa3b 100644
   "futures",
   "http 1.1.0",
   "indicatif",
-@@ -5129,13 +5401,16 @@ dependencies = [
+@@ -5129,13 +5403,16 @@ dependencies = [
   "is-terminal",
   "itertools 0.12.1",
   "mimalloc",
@@ -695,7 +696,7 @@ index f9d50525f..4e556fa3b 100644
   "slab",
   "spacetimedb-auth",
   "spacetimedb-client-api-messages",
-@@ -5165,6 +5440,7 @@ dependencies = [
+@@ -5165,6 +5442,7 @@ dependencies = [
   "wasmtime",
   "webbrowser",
   "windows-sys 0.59.0",
@@ -703,7 +704,7 @@ index f9d50525f..4e556fa3b 100644
  ]
  
  [[package]]
-@@ -5183,7 +5459,7 @@ dependencies = [
+@@ -5183,7 +5461,7 @@ dependencies = [
   "futures",
   "headers",
   "http 1.1.0",
@@ -712,7 +713,7 @@ index f9d50525f..4e556fa3b 100644
   "hyper-util",
   "itoa",
   "jemalloc_pprof",
-@@ -5303,7 +5579,7 @@ dependencies = [
+@@ -5303,7 +5581,7 @@ dependencies = [
   "hashbrown 0.15.1",
   "hex",
   "hostname",
@@ -721,7 +722,7 @@ index f9d50525f..4e556fa3b 100644
   "imara-diff",
   "indexmap 2.6.0",
   "itertools 0.12.1",
-@@ -5325,7 +5601,7 @@ dependencies = [
+@@ -5325,7 +5603,7 @@ dependencies = [
   "regex",
   "reqwest 0.12.9",
   "rustc-demangle",
@@ -730,7 +731,7 @@ index f9d50525f..4e556fa3b 100644
   "scopeguard",
   "semver",
   "serde",
-@@ -5495,14 +5771,19 @@ dependencies = [
+@@ -5495,14 +5773,19 @@ dependencies = [
   "blake3",
   "bytes",
   "chrono",
@@ -750,7 +751,7 @@ index f9d50525f..4e556fa3b 100644
   "ron",
   "serde",
   "serde_json",
-@@ -5512,6 +5793,7 @@ dependencies = [
+@@ -5512,6 +5795,7 @@ dependencies = [
   "spacetimedb-primitives",
   "spacetimedb-sats",
   "thiserror 1.0.69",
@@ -758,7 +759,7 @@ index f9d50525f..4e556fa3b 100644
  ]
  
  [[package]]
-@@ -5648,10 +5930,12 @@ dependencies = [
+@@ -5648,10 +5932,12 @@ dependencies = [
  name = "spacetimedb-sdk"
  version = "1.1.1"
  dependencies = [
@@ -771,7 +772,7 @@ index f9d50525f..4e556fa3b 100644
   "cursive",
   "futures",
   "futures-channel",
-@@ -5659,9 +5943,12 @@ dependencies = [
+@@ -5659,9 +5945,12 @@ dependencies = [
   "home",
   "http 1.1.0",
   "log",
@@ -784,7 +785,7 @@ index f9d50525f..4e556fa3b 100644
   "spacetimedb-client-api-messages",
   "spacetimedb-data-structures",
   "spacetimedb-lib",
-@@ -5719,6 +6006,7 @@ dependencies = [
+@@ -5719,6 +6008,7 @@ dependencies = [
   "anyhow",
   "async-trait",
   "axum",
@@ -792,7 +793,7 @@ index f9d50525f..4e556fa3b 100644
   "clap 4.5.20",
   "dirs",
   "futures",
-@@ -5728,8 +6016,13 @@ dependencies = [
+@@ -5728,8 +6018,13 @@ dependencies = [
   "once_cell",
   "openssl",
   "prometheus",
@@ -806,7 +807,7 @@ index f9d50525f..4e556fa3b 100644
   "sled",
   "socket2",
   "spacetimedb-client-api",
-@@ -5745,6 +6038,7 @@ dependencies = [
+@@ -5745,6 +6040,7 @@ dependencies = [
   "toml 0.8.19",
   "tower-http",
   "tracing",
@@ -814,7 +815,7 @@ index f9d50525f..4e556fa3b 100644
  ]
  
  [[package]]
-@@ -5878,7 +6172,7 @@ checksum = "78ea1056caa9180e7e5727eed1a377d96c9f4615303fa82d2f4c202c64736dee"
+@@ -5878,7 +6174,7 @@ checksum = "78ea1056caa9180e7e5727eed1a377d96c9f4615303fa82d2f4c202c64736dee"
  dependencies = [
   "async-trait",
   "educe",
@@ -823,7 +824,7 @@ index f9d50525f..4e556fa3b 100644
   "futures",
   "glob",
   "humantime",
-@@ -5936,7 +6230,7 @@ dependencies = [
+@@ -5936,7 +6232,7 @@ dependencies = [
   "clap 4.5.20",
   "console",
   "derive_more",
@@ -832,7 +833,7 @@ index f9d50525f..4e556fa3b 100644
   "futures",
   "glob",
   "itertools 0.12.1",
-@@ -7868,6 +8162,23 @@ dependencies = [
+@@ -7868,6 +8164,23 @@ dependencies = [
   "tap",
  ]
  
@@ -857,7 +858,7 @@ index f9d50525f..4e556fa3b 100644
  name = "xattr"
  version = "1.3.1"
 diff --git a/Cargo.toml b/Cargo.toml
-index e4d7cf8c5..79bd3b7ab 100644
+index e4d7cf8c5..78861e8d1 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
 @@ -66,7 +66,8 @@ lto = "thin"
@@ -890,7 +891,7 @@ index e4d7cf8c5..79bd3b7ab 100644
 -hyper = "1.0"
 -hyper-util = { version = "0.1", features = ["tokio"] }
 +hyper = "1.6"
-+hyper-util = { version = "0.1.12", features = ["tokio"] }
++hyper-util = { version = "0.1.11", features = ["tokio"] }
  imara-diff = "0.1.3"
  indexmap = "2.0.0"
  indicatif = "0.17"
@@ -908,15 +909,6 @@ index e4d7cf8c5..79bd3b7ab 100644
  ron = "0.8"
  rusqlite = { version = "0.29.0", features = ["bundled", "column_decltype"] }
  rust_decimal = { version = "1.29.1", features = ["db-tokio-postgres"] }
-@@ -317,3 +328,8 @@ features = [
-   "ondemand",
- ]
- 
-+
-+[patch.crates-io]
-+#hyper = { path = "/home/user/SOURCE/my/channelclosed.reqwest/hyper" }
-+hyper-util = { path = "/home/user/SOURCE/my/channelclosed.reqwest/hyper-util" }
-+
 diff --git a/crates/cli/Cargo.toml b/crates/cli/Cargo.toml
 index 591d80a3c..fe693b517 100644
 --- a/crates/cli/Cargo.toml
@@ -2627,7 +2619,7 @@ index 6eb2039c7..7eddd08f8 100644
      let task = async {
          subscribe(&mut ws, queries.cloned().map(Into::into).collect()).await?;
 diff --git a/crates/cli/src/util.rs b/crates/cli/src/util.rs
-index 20e0591ca..e1cfb1926 100644
+index 20e0591ca..fdea6e25e 100644
 --- a/crates/cli/src/util.rs
 +++ b/crates/cli/src/util.rs
 @@ -1,3 +1,4 @@
@@ -2659,7 +2651,7 @@ index 20e0591ca..e1cfb1926 100644
          .await?
          .with_context(|| format!("the dns resolution of `{name_or_identity}` failed."))
  }
-@@ -106,13 +111,156 @@ impl ResponseExt for reqwest::Response {
+@@ -106,13 +111,157 @@ impl ResponseExt for reqwest::Response {
      }
  }
  
@@ -2686,9 +2678,10 @@ index 20e0591ca..e1cfb1926 100644
 +
 +    client_builder = if trust_system {
 +        //TODO: find out if this method is taking /etc/ssl/ system trust store certs or what!
++        eprintln!("Trusting system/root cert store for verifying server's cert.");
 +        client_builder.tls_built_in_root_certs(true)
 +    } else {
-+        eprintln!("Not trusting system/root cert store.");
++        eprintln!("Not trusting system/root cert store for verifying server's cert.");
 +        client_builder.tls_built_in_root_certs(false)
 +    };
 +//    // Validate trust store options
@@ -2817,7 +2810,7 @@ index 20e0591ca..e1cfb1926 100644
      let url = format!("{}/v1/database/{}/identity", config.get_host_url(server)?, domain);
      let Some(res) = client.get(url).send().await?.found() else {
          return Ok(None);
-@@ -123,9 +271,47 @@ pub async fn spacetime_dns(
+@@ -123,9 +272,47 @@ pub async fn spacetime_dns(
          .context("identity endpoint did not return an identity")
  }
  
@@ -2868,7 +2861,7 @@ index 20e0591ca..e1cfb1926 100644
      let fingerprint = res.text().await?;
      Ok(fingerprint)
  }
-@@ -314,9 +500,21 @@ pub async fn get_login_token_or_log_in(
+@@ -314,9 +501,21 @@ pub async fn get_login_token_or_log_in(
  
      if full_login {
          let host = Url::parse(DEFAULT_AUTH_HOST)?;
@@ -4052,7 +4045,7 @@ index 5207edf40..c83862da6 100644
  dirs.workspace = true
  futures.workspace = true
 diff --git a/crates/standalone/src/subcommands/start.rs b/crates/standalone/src/subcommands/start.rs
-index d74267c64..072cad96b 100644
+index d74267c64..fd8da1b94 100644
 --- a/crates/standalone/src/subcommands/start.rs
 +++ b/crates/standalone/src/subcommands/start.rs
 @@ -1,4 +1,8 @@
@@ -4233,7 +4226,7 @@ index d74267c64..072cad96b 100644
  pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
      let listen_addr = args.get_one::<String>("listen_addr").unwrap();
      let cert_dir = args.get_one::<spacetimedb_paths::cli::ConfigDir>("jwt_key_dir");
-@@ -143,10 +297,122 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
+@@ -143,10 +297,125 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
      let extra = axum::Router::new().nest("/health", spacetimedb_client_api::routes::health::router());
      let service = router(&ctx, db_routes, extra).with_state(ctx);
  
@@ -4270,6 +4263,7 @@ index d74267c64..072cad96b 100644
 +        //use openssl::sha::{Sha256, Digest};
 +
 +        if trust_system {
++            eprintln!("Trusting system root store for verifying client certs.");
 +            //unusual to trust system store with mTLS
 +            //load system trust store certs
 +            let cr:rustls_native_certs::CertificateResult = rustls_native_certs::load_native_certs();
@@ -4295,6 +4289,8 @@ index d74267c64..072cad96b 100644
 +
 +                roots.add(cert)?;
 +            }
++        } else {
++            eprintln!("Not trusting system root store for verifying client certs.");
 +        }
 +
 +        // Load custom client trust certificates
