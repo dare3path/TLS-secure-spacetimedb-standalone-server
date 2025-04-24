@@ -18,6 +18,11 @@ add it in the main patch! currently it's in ./mTLS.patch
 ----------------
 make sure the args depends on each other properly
 ----------------
+read_file_limited and other similar code that isn't in a function, are both broken
+i didn't check the code that grok3 made, tested it superficially though, and it worked
+now that I looked, it's clear why it worked and why it's incorrect.
+
+----------------
 
 
 
