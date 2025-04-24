@@ -6,19 +6,77 @@ This repo provides a patch for [SpacetimeDB](https://github.com/clockworklabs/Sp
 - License: Business Source License 1.1 (see `LICENSE.txt`), switches to AGPLv3 on March 27, 2030
 
 ## Usage:
-- apply patch TODO:  
-apply on commit 651f79d22cc4bb1c3c996ef2436186501a5d83bd (origin/master, origin/HEAD, master)
-- install `spacetime` command TODO:
+- apply patch:  
+assuming you're in bash shell:  
+```
+cd /tmp
+git clone https://github.com/dare3path/spacetimedb-tls-patch
+git clone https://github.com/clockworklabs/SpacetimeDB
+cd SpacetimeDB
+```
+  look inside the patch file to see which commit to apply it on.  
+```
+git checkout 
+patch -p1 -i ../spacetimedb-tls-patch/spacetimedb-tls.patch
+```
+Edit `./Cargo.toml` and remove anything from `[patch.crates-io]` section it it exists, unless you want to apply the patches for those and change the paths to match where you've cloned the repos and patched them.  
+
+- install `spacetime` command:  
+  if debug:  
+```
+time cargo build --locked -p spacetimedb-standalone -p spacetimedb-update -p spacetimedb-cli
+outdir="./target/debug/"
+```
+  if release:  
+```
+time cargo build --release --locked -p spacetimedb-standalone -p spacetimedb-update -p spacetimedb-cli
+outdir="./target/release/"
+```
+  for either:  
+```
+mkdir -p ~/.local/bin
+export STDB_VERSION="$(${outdir}/spacetimedb-cli --version | sed -n 's/.*spacetimedb tool version \([0-9.]*\);.*/\1/p')"
+mkdir -p ~/.local/share/spacetime/bin/$STDB_VERSION
+cp ${outdir}/spacetimedb-cli ~/.local/share/spacetime/bin/$STDB_VERSION
+cp ${outdir}/spacetimedb-standalone ~/.local/share/spacetime/bin/$STDB_VERSION
+cp ${outdir}/spacetimedb-update ~/.local/bin/spacetime
+```
+  make sure you update your path:  
+```
+export PATH="$PATH:$HOME/.local/bin"
+```
+  and save it in `~/.bashrc` too for the future.  
+```
+spacetime version list
+```
+  might show something like this:  
+```
+1.0.1
+1.1.0
+spacetimedb-standalone
+1.1.1
+```
+  select latest:  
+```
+spacetime version use "$STDB_VERSION"
+ls -la ~/.local/share/spacetime/bin/current
+```
+  that should show something like:  
+  `lrwxrwxrwx 1 user users 43 Apr 24 19:15 /home/user/.local/share/spacetime/bin/current -> /home/user/.local/share/spacetime/bin/1.1.1`  
+  which confirms it's been selected properly.  
 - generate server private and public keys (maybe sign by your own local CA):  
   you'll find instructions here: https://github.com/dare3path/spacetimedb-cert-gen
 - start the spacetimedb standalone server in TLS mode:  
   `spacetime start --edition standalone --listen-addr 127.0.0.1:3000 --ssl --cert ../spacetimedb-cert-gen/server.crt --key ../spacetimedb-cert-gen/server.key`
   - can use `--ssl`, `--tls`, `--https` or `--secure`, they're aliases of the same thing.
+  - note: mTLS is supported via args `--client-cert` which points to one or more(bundled ie. appended via `cat`) certs to add to the trusted root store for authenticating any certs that clients send to the server to be authenticated; there's `--client-no-trust-system-root-store`(which is the default) to not use the system's root store for authenticating client certs(in addition to what you passed), or `--client-trust-system-root-store` to trust it.  
 - start a rust client from a different terminal and connect to the server in TLS mode:  
   `cd ./crates/sdk/` (this is in SpacetimeDB repo)  
   `cargo run --example quickstart-chat -- --cert ../../../spacetimedb-cert-gen/ca.crt`  
-  Note that spacetimedb (the commit mentioned above) had the client hardcoded to connect to 127.0.0.1:3000, the patch kept this and only changed the scheme from http to https (if `--cert` arg is supplied).  
-  This will likely `404` if you haven't published the module first (see below).
+  Note that spacetimedb (at the time of this writing) had the client hardcoded to connect to 127.0.0.1:3000, the patch kept this as is and only changed the scheme from http to https (if `--cert` arg is supplied).  
+  This will likely `404` if you haven't published the module first (see below).  
+  - mTLS for clients/cli supports args like `--client-cert`, `--client-key`  
+  - `--trust-system-root-store`(default) or `--no-trust-system-root-store` can be used when clients authenticate the server's cert in addition to `--cert`(aka `--trust-server-cert`).  
 - use cli commands:  
   `spacetime version list`  
   `spacetime version use 1.1.0`  
