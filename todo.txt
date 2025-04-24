@@ -30,6 +30,7 @@ might want an Option<String> (with proper ref) instead of String arg for url, be
 make sure any new anyhow::anyhow!() created errors aren't overwriting existing ones, instead use .context() or .with_context() depending on type.
 ----------------
 still need to check some places like the example client code maybe, to see if it properly returns the error when client certs were required but not provided to a mTLS server (ssl alert 116)
+and make sure it goes thru map_request_error
 ----------------
 
 
