@@ -25,6 +25,9 @@ i didn't check the code that grok3 made, tested it superficially though, and it 
 now that I looked, it's clear why it worked and why it's incorrect.
 
 ----------------
+map_request_error!() is kind of a mess to call too
+might want an Option<String> (with proper ref) instead of String arg for url, because some errors may happen before even sending the request such as in build_config, thus before .get().send()
+----------------
 
 
 
