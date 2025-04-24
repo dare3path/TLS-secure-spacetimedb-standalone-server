@@ -1,4 +1,4 @@
-Adds ability to listen as https via TLS 1.3 for SpacetimeDB standalone server with self-signed or CA-signed certs, and allows clients(rust, cli) to pass --cert with a trusted cert (like server's self-signed cert or CA's public cert) to not fail signature check.
+Adds ability to listen as https via TLS 1.3 for SpacetimeDB standalone server with self-signed or CA-signed certs, and allows clients(rust, cli) to pass --cert with a trusted cert (like server's self-signed cert or CA's public cert) to not fail signature check. Can now do mTLS too, optionally, which means clients can be authenticated(by the server) by providing their cert to the server.
 
 Currently limited to TLS 1.3 only, but can be changed in source code to allow TLS 1.2 also.
 
@@ -10,8 +10,8 @@ https://github.com/clockworklabs/SpacetimeDB/pull/2598
 it's meant to remain as a draft, never-to-be-merged mainly because actual devs can do this in a better way, so it's only meant to be an example, working, proof-of-concept patch.
 
 patch is to be applied on latest master, currently:
-commit 651f79d22cc4bb1c3c996ef2436186501a5d83bd (origin/master, origin/HEAD, master)
-
+commit 59faab8a1ff0cfc966ed708169d93328d19eca9c (upstream/master, upstream/HEAD, master)
+Date:   Wed Apr 23 17:54:07 2025 -0700
 
 The features that this patch confers are as follows:
 
@@ -68,10 +68,25 @@ FIXME: the changes in config.rs are supremely hacky, since the original code dis
 ======
 avoids OOM if you pass --cert /dev/zero
 ======
+added mutual TLS (mTLS) support
+which means, clients can provide a cert to identify themselves, if server used --client-cert arg
+to pass the cert file/chain that server will use to check client-provided certs for authentication.
+Clients must then use --client-cert and --client-key to pass their cert/private key to cli commands.
+
+Note that: $ spacetime start --help
+has a similar feature for identities (ie. after you're already talking to the server, the spacetimedb one,
+as opposed to the TLS "handshaking" part of it which is prior and this patch addresses)
+
+      --jwt-pub-key-path <jwt_pub_key_path>    The path to the public jwt key for verifying identities
+      --jwt-priv-key-path <jwt_priv_key_path>  The path to the private jwt key for issuing identities
+
+so if that jwt isn't enough for you, then you want this mTLS patch, perhaps in addition to it.
+======
+
 
 
 diff --git a/Cargo.lock b/Cargo.lock
-index 5b15f068..7e74cb9a 100644
+index f9d50525f..4e556fa3b 100644
 --- a/Cargo.lock
 +++ b/Cargo.lock
 @@ -194,6 +194,12 @@ dependencies = [
@@ -87,7 +102,53 @@ index 5b15f068..7e74cb9a 100644
  [[package]]
  name = "arrayref"
  version = "0.3.9"
-@@ -292,6 +298,29 @@ version = "1.4.0"
+@@ -206,6 +212,45 @@ version = "0.7.6"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
+ 
++[[package]]
++name = "asn1-rs"
++version = "0.7.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "56624a96882bb8c26d61312ae18cb45868e5a9992ea73c58e45c3101e56a1e60"
++dependencies = [
++ "asn1-rs-derive",
++ "asn1-rs-impl",
++ "displaydoc",
++ "nom",
++ "num-traits",
++ "rusticata-macros",
++ "thiserror 2.0.11",
++ "time",
++]
++
++[[package]]
++name = "asn1-rs-derive"
++version = "0.6.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "3109e49b1e4909e9db6515a30c633684d68cdeaa252f215214cb4fa1a5bfee2c"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn 2.0.87",
++ "synstructure 0.13.1",
++]
++
++[[package]]
++name = "asn1-rs-impl"
++version = "0.2.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "7b18050c2cd6fe86c3a76584ef5e0baf286d038cda203eb6223df2cc413565f7"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn 2.0.87",
++]
++
+ [[package]]
+ name = "async-stream"
+ version = "0.3.6"
+@@ -292,6 +337,29 @@ version = "1.4.0"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
  
@@ -117,7 +178,16 @@ index 5b15f068..7e74cb9a 100644
  [[package]]
  name = "axum"
  version = "0.7.7"
-@@ -370,6 +399,28 @@ dependencies = [
+@@ -305,7 +373,7 @@ dependencies = [
+  "http 1.1.0",
+  "http-body 1.0.1",
+  "http-body-util",
+- "hyper 1.5.0",
++ "hyper 1.6.0",
+  "hyper-util",
+  "itoa",
+  "matchit",
+@@ -370,6 +438,28 @@ dependencies = [
   "tracing",
  ]
  
@@ -132,7 +202,7 @@ index 5b15f068..7e74cb9a 100644
 + "fs-err 3.1.0",
 + "http 1.1.0",
 + "http-body 1.0.1",
-+ "hyper 1.5.0",
++ "hyper 1.6.0",
 + "hyper-util",
 + "pin-project-lite",
 + "rustls",
@@ -146,7 +216,7 @@ index 5b15f068..7e74cb9a 100644
  [[package]]
  name = "backtrace"
  version = "0.3.74"
-@@ -427,6 +478,29 @@ dependencies = [
+@@ -427,6 +517,29 @@ dependencies = [
   "serde",
  ]
  
@@ -176,7 +246,7 @@ index 5b15f068..7e74cb9a 100644
  [[package]]
  name = "bit-set"
  version = "0.5.3"
-@@ -704,6 +778,15 @@ version = "1.1.0"
+@@ -704,6 +817,15 @@ version = "1.1.0"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "6d43a04d8753f35258c91f8ec639f792891f748a1edbd759cf1dcea3382ad83c"
  
@@ -192,7 +262,7 @@ index 5b15f068..7e74cb9a 100644
  [[package]]
  name = "cfg-if"
  version = "1.0.0"
-@@ -768,6 +851,17 @@ dependencies = [
+@@ -768,6 +890,17 @@ dependencies = [
   "inout",
  ]
  
@@ -210,7 +280,7 @@ index 5b15f068..7e74cb9a 100644
  [[package]]
  name = "clap"
  version = "3.2.23"
-@@ -868,6 +962,15 @@ dependencies = [
+@@ -868,6 +1001,15 @@ dependencies = [
   "winapi",
  ]
  
@@ -226,7 +296,7 @@ index 5b15f068..7e74cb9a 100644
  [[package]]
  name = "cobs"
  version = "0.2.3"
-@@ -1024,7 +1127,7 @@ dependencies = [
+@@ -1024,7 +1166,7 @@ dependencies = [
   "hashbrown 0.14.5",
   "log",
   "regalloc2",
@@ -235,7 +305,28 @@ index 5b15f068..7e74cb9a 100644
   "smallvec",
   "target-lexicon",
  ]
-@@ -1525,6 +1628,12 @@ dependencies = [
+@@ -1398,6 +1540,20 @@ version = "0.1.9"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "da692b8d1080ea3045efaab14434d40468c3d8657e42abddfffca87b428f4c1b"
+ 
++[[package]]
++name = "der-parser"
++version = "10.0.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "07da5016415d5a3c4dd39b11ed26f915f52fc4e0dc197d87908bc916e51bc1a6"
++dependencies = [
++ "asn1-rs",
++ "displaydoc",
++ "nom",
++ "num-bigint",
++ "num-traits",
++ "rusticata-macros",
++]
++
+ [[package]]
+ name = "deranged"
+ version = "0.3.11"
+@@ -1525,6 +1681,12 @@ dependencies = [
   "shared_child",
  ]
  
@@ -248,7 +339,7 @@ index 5b15f068..7e74cb9a 100644
  [[package]]
  name = "educe"
  version = "0.4.23"
-@@ -1847,6 +1956,16 @@ dependencies = [
+@@ -1847,6 +2009,16 @@ dependencies = [
   "autocfg",
  ]
  
@@ -265,7 +356,7 @@ index 5b15f068..7e74cb9a 100644
  [[package]]
  name = "fs2"
  version = "0.4.3"
-@@ -1857,6 +1976,12 @@ dependencies = [
+@@ -1857,6 +2029,12 @@ dependencies = [
   "winapi",
  ]
  
@@ -278,7 +369,57 @@ index 5b15f068..7e74cb9a 100644
  [[package]]
  name = "fuchsia-cprng"
  version = "0.1.1"
-@@ -2901,6 +3026,12 @@ version = "1.5.0"
+@@ -2330,9 +2508,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "hyper"
+-version = "1.5.0"
++version = "1.6.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "bbbff0a806a4728c99295b254c8838933b5b082d75e3cb70c8dab21fdfbcfa9a"
++checksum = "cc2b571658e38e0c01b1fdca3bbbe93c00d3d71693ff2770043f8c29bc7d6f80"
+ dependencies = [
+  "bytes",
+  "futures-channel",
+@@ -2357,7 +2535,7 @@ checksum = "08afdbb5c31130e3034af566421053ab03787c640246a446327f550d11bcb333"
+ dependencies = [
+  "futures-util",
+  "http 1.1.0",
+- "hyper 1.5.0",
++ "hyper 1.6.0",
+  "hyper-util",
+  "rustls",
+  "rustls-pki-types",
+@@ -2387,7 +2565,7 @@ checksum = "70206fc6890eaca9fde8a0bf71caa2ddfc9fe045ac9e5c70df101a7dbde866e0"
+ dependencies = [
+  "bytes",
+  "http-body-util",
+- "hyper 1.5.0",
++ "hyper 1.6.0",
+  "hyper-util",
+  "native-tls",
+  "tokio",
+@@ -2397,16 +2575,15 @@ dependencies = [
+ 
+ [[package]]
+ name = "hyper-util"
+-version = "0.1.10"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "df2dcfbe0677734ab2f3ffa7fa7bfd4706bfdc1ef393f2ee30184aed67e631b4"
++version = "0.1.12"
+ dependencies = [
+  "bytes",
+  "futures-channel",
+  "futures-util",
+  "http 1.1.0",
+  "http-body 1.0.1",
+- "hyper 1.5.0",
++ "hyper 1.6.0",
++ "libc",
+  "pin-project-lite",
+  "socket2",
+  "tokio",
+@@ -2901,6 +3078,12 @@ version = "1.5.0"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
  
@@ -291,10 +432,16 @@ index 5b15f068..7e74cb9a 100644
  [[package]]
  name = "leb128"
  version = "0.2.5"
-@@ -2913,6 +3044,16 @@ version = "0.2.162"
- source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "18d287de67fe55fd7e1581fe933d965a5a9477b38e949cfa9f8574ef01506398"
+@@ -2909,9 +3092,19 @@ checksum = "884e2677b40cc8c339eaefcb701c32ef1fd2493d71118dc0ca4b6a736c93bd67"
  
+ [[package]]
+ name = "libc"
+-version = "0.2.162"
++version = "0.2.172"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "18d287de67fe55fd7e1581fe933d965a5a9477b38e949cfa9f8574ef01506398"
++checksum = "d750af042f7ef4f724306de029d18836c26c1765a54a6a3f094cbd23a7267ffa"
++
 +[[package]]
 +name = "libloading"
 +version = "0.8.6"
@@ -304,11 +451,10 @@ index 5b15f068..7e74cb9a 100644
 + "cfg-if",
 + "windows-targets 0.52.6",
 +]
-+
+ 
  [[package]]
  name = "libm"
- version = "0.2.11"
-@@ -3128,6 +3269,12 @@ version = "0.3.17"
+@@ -3128,6 +3321,12 @@ version = "0.3.17"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
  
@@ -321,7 +467,16 @@ index 5b15f068..7e74cb9a 100644
  [[package]]
  name = "miniz_oxide"
  version = "0.8.0"
-@@ -3219,6 +3366,16 @@ version = "0.2.0"
+@@ -3182,7 +3381,7 @@ dependencies = [
+  "openssl-probe",
+  "openssl-sys",
+  "schannel",
+- "security-framework",
++ "security-framework 2.11.1",
+  "security-framework-sys",
+  "tempfile",
+ ]
+@@ -3219,6 +3418,16 @@ version = "0.2.0"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451"
  
@@ -338,7 +493,23 @@ index 5b15f068..7e74cb9a 100644
  [[package]]
  name = "nu-ansi-term"
  version = "0.46.0"
-@@ -3817,6 +3974,16 @@ dependencies = [
+@@ -3390,6 +3599,15 @@ dependencies = [
+  "memchr",
+ ]
+ 
++[[package]]
++name = "oid-registry"
++version = "0.8.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "12f40cff3dde1b6087cc5d5f5d4d65712f34016a03ed60e9c08dcc392736b5b7"
++dependencies = [
++ "asn1-rs",
++]
++
+ [[package]]
+ name = "once_cell"
+ version = "1.20.2"
+@@ -3817,6 +4035,16 @@ dependencies = [
   "yansi",
  ]
  
@@ -355,7 +526,7 @@ index 5b15f068..7e74cb9a 100644
  [[package]]
  name = "proc-macro-crate"
  version = "3.2.0"
-@@ -4221,7 +4388,7 @@ checksum = "12908dbeb234370af84d0579b9f68258a0f67e201412dd9a2814e6f45b2fc0f0"
+@@ -4221,7 +4449,7 @@ checksum = "12908dbeb234370af84d0579b9f68258a0f67e201412dd9a2814e6f45b2fc0f0"
  dependencies = [
   "hashbrown 0.14.5",
   "log",
@@ -364,7 +535,16 @@ index 5b15f068..7e74cb9a 100644
   "slice-group-by",
   "smallvec",
  ]
-@@ -4475,6 +4642,12 @@ version = "0.1.24"
+@@ -4343,7 +4571,7 @@ dependencies = [
+  "http 1.1.0",
+  "http-body 1.0.1",
+  "http-body-util",
+- "hyper 1.5.0",
++ "hyper 1.6.0",
+  "hyper-rustls",
+  "hyper-tls 0.6.0",
+  "hyper-util",
+@@ -4475,6 +4703,12 @@ version = "0.1.24"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "719b953e2095829ee67db738b3bfa9fa368c94900df327b3f07fe6e794d2fe1f"
  
@@ -377,9 +557,31 @@ index 5b15f068..7e74cb9a 100644
  [[package]]
  name = "rustc-hash"
  version = "2.0.0"
-@@ -4509,7 +4682,10 @@ version = "0.23.16"
+@@ -4490,6 +4724,15 @@ dependencies = [
+  "semver",
+ ]
+ 
++[[package]]
++name = "rusticata-macros"
++version = "4.1.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "faf0c4a6ece9950b9abdb62b1cfcf2a68b3b67a10ba445b3bb85be2a293d0632"
++dependencies = [
++ "nom",
++]
++
+ [[package]]
+ name = "rustix"
+ version = "0.38.40"
+@@ -4505,17 +4748,32 @@ dependencies = [
+ 
+ [[package]]
+ name = "rustls"
+-version = "0.23.16"
++version = "0.23.26"
  source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "eee87ff5d9b36712a58574e12e9f0ea80f915a5b0ac518d322b24a465617925e"
+-checksum = "eee87ff5d9b36712a58574e12e9f0ea80f915a5b0ac518d322b24a465617925e"
++checksum = "df51b5869f3a441595eac5e8ff14d486ff285f7b8c0df8770e49c3b56351f0f0"
  dependencies = [
 + "aws-lc-rs",
 + "log",
@@ -388,15 +590,86 @@ index 5b15f068..7e74cb9a 100644
   "rustls-pki-types",
   "rustls-webpki",
   "subtle",
-@@ -4546,6 +4722,7 @@ version = "0.102.8"
+  "zeroize",
+ ]
+ 
++[[package]]
++name = "rustls-native-certs"
++version = "0.8.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "7fcff2dd52b58a8d98a70243663a0d234c4e2b79235637849d15913394a247d3"
++dependencies = [
++ "openssl-probe",
++ "rustls-pki-types",
++ "schannel",
++ "security-framework 3.2.0",
++]
++
+ [[package]]
+ name = "rustls-pemfile"
+ version = "1.0.4"
+@@ -4536,16 +4794,17 @@ dependencies = [
+ 
+ [[package]]
+ name = "rustls-pki-types"
+-version = "1.10.0"
++version = "1.11.0"
  source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "64ca1bc8749bd4cf37b5ce386cc146580777b4e8572c7b97baf22c83f444bee9"
+-checksum = "16f1201b3c9a7ee8039bcadc17b7e605e2945b27eee7631788c1bd2b0643674b"
++checksum = "917ce264624a4b4db1c364dcc35bfca9ded014d0a958cd47ad3e960e988ea51c"
+ 
+ [[package]]
+ name = "rustls-webpki"
+-version = "0.102.8"
++version = "0.103.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "64ca1bc8749bd4cf37b5ce386cc146580777b4e8572c7b97baf22c83f444bee9"
++checksum = "fef8b8769aaccf73098557a87cd1816b4f9c7c16811c9c77142aa695c16f2c03"
  dependencies = [
 + "aws-lc-rs",
   "ring",
   "rustls-pki-types",
   "untrusted",
-@@ -5121,7 +5298,7 @@ dependencies = [
+@@ -4673,11 +4932,24 @@ dependencies = [
+  "security-framework-sys",
+ ]
+ 
++[[package]]
++name = "security-framework"
++version = "3.2.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "271720403f46ca04f7ba6f55d438f8bd878d6b8ca0a1046e8228c4145bcbb316"
++dependencies = [
++ "bitflags 2.6.0",
++ "core-foundation 0.10.0",
++ "core-foundation-sys",
++ "libc",
++ "security-framework-sys",
++]
++
+ [[package]]
+ name = "security-framework-sys"
+-version = "2.12.1"
++version = "2.14.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "fa39c7303dc58b5543c94d22c1766b0d31f2ee58306363ea622b10bbc075eaa2"
++checksum = "49db231d56a190491cb4aeda9527f1ad45345af50b0851622a7adb8c03b01c32"
+ dependencies = [
+  "core-foundation-sys",
+  "libc",
+@@ -4993,9 +5265,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "socket2"
+-version = "0.5.7"
++version = "0.5.9"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "ce305eb0b4296696835b71df73eb912e0f1ffd2556a501fcede6e0c50349191c"
++checksum = "4f5fd57c80058a56cf5c777ab8a126398ece8e442983605d280a44ce79d0edef"
+ dependencies = [
+  "libc",
+  "windows-sys 0.52.0",
+@@ -5121,7 +5393,7 @@ dependencies = [
   "duct",
   "email_address",
   "flate2",
@@ -405,7 +678,7 @@ index 5b15f068..7e74cb9a 100644
   "futures",
   "http 1.1.0",
   "indicatif",
-@@ -5129,6 +5306,7 @@ dependencies = [
+@@ -5129,13 +5401,16 @@ dependencies = [
   "is-terminal",
   "itertools 0.12.1",
   "mimalloc",
@@ -413,7 +686,42 @@ index 5b15f068..7e74cb9a 100644
   "percent-encoding",
   "regex",
   "reqwest 0.12.9",
-@@ -5325,7 +5503,7 @@ dependencies = [
++ "rustls-pemfile 2.2.0",
+  "rustyline",
+  "serde",
+  "serde_json",
+  "serde_with",
++ "sha2",
+  "slab",
+  "spacetimedb-auth",
+  "spacetimedb-client-api-messages",
+@@ -5165,6 +5440,7 @@ dependencies = [
+  "wasmtime",
+  "webbrowser",
+  "windows-sys 0.59.0",
++ "x509-parser",
+ ]
+ 
+ [[package]]
+@@ -5183,7 +5459,7 @@ dependencies = [
+  "futures",
+  "headers",
+  "http 1.1.0",
+- "hyper 1.5.0",
++ "hyper 1.6.0",
+  "hyper-util",
+  "itoa",
+  "jemalloc_pprof",
+@@ -5303,7 +5579,7 @@ dependencies = [
+  "hashbrown 0.15.1",
+  "hex",
+  "hostname",
+- "hyper 1.5.0",
++ "hyper 1.6.0",
+  "imara-diff",
+  "indexmap 2.6.0",
+  "itertools 0.12.1",
+@@ -5325,7 +5601,7 @@ dependencies = [
   "regex",
   "reqwest 0.12.9",
   "rustc-demangle",
@@ -422,7 +730,7 @@ index 5b15f068..7e74cb9a 100644
   "scopeguard",
   "semver",
   "serde",
-@@ -5495,12 +5673,14 @@ dependencies = [
+@@ -5495,14 +5771,19 @@ dependencies = [
   "blake3",
   "bytes",
   "chrono",
@@ -431,13 +739,18 @@ index 5b15f068..7e74cb9a 100644
   "enum-as-inner",
   "enum-map",
   "hex",
++ "hyper 1.6.0",
   "insta",
   "itertools 0.12.1",
 + "native-tls",
++ "openssl",
   "proptest",
   "proptest-derive",
++ "reqwest 0.12.9",
   "ron",
-@@ -5512,6 +5692,7 @@ dependencies = [
+  "serde",
+  "serde_json",
+@@ -5512,6 +5793,7 @@ dependencies = [
   "spacetimedb-primitives",
   "spacetimedb-sats",
   "thiserror 1.0.69",
@@ -445,15 +758,20 @@ index 5b15f068..7e74cb9a 100644
  ]
  
  [[package]]
-@@ -5648,6 +5829,7 @@ dependencies = [
+@@ -5648,10 +5930,12 @@ dependencies = [
  name = "spacetimedb-sdk"
- version = "1.1.0"
+ version = "1.1.1"
  dependencies = [
 + "anyhow",
   "anymap",
   "base64 0.21.7",
   "brotli",
-@@ -5659,9 +5841,12 @@ dependencies = [
+  "bytes",
++ "clap 4.5.20",
+  "cursive",
+  "futures",
+  "futures-channel",
+@@ -5659,9 +5943,12 @@ dependencies = [
   "home",
   "http 1.1.0",
   "log",
@@ -466,7 +784,7 @@ index 5b15f068..7e74cb9a 100644
   "spacetimedb-client-api-messages",
   "spacetimedb-data-structures",
   "spacetimedb-lib",
-@@ -5719,6 +5904,7 @@ dependencies = [
+@@ -5719,6 +6006,7 @@ dependencies = [
   "anyhow",
   "async-trait",
   "axum",
@@ -474,17 +792,29 @@ index 5b15f068..7e74cb9a 100644
   "clap 4.5.20",
   "dirs",
   "futures",
-@@ -5728,6 +5914,9 @@ dependencies = [
+@@ -5728,8 +6016,13 @@ dependencies = [
   "once_cell",
   "openssl",
   "prometheus",
 + "ring",
 + "rustls",
++ "rustls-native-certs",
 + "rustls-pemfile 2.2.0",
   "scopeguard",
   "serde_json",
++ "sha2",
   "sled",
-@@ -5878,7 +6067,7 @@ checksum = "78ea1056caa9180e7e5727eed1a377d96c9f4615303fa82d2f4c202c64736dee"
+  "socket2",
+  "spacetimedb-client-api",
+@@ -5745,6 +6038,7 @@ dependencies = [
+  "toml 0.8.19",
+  "tower-http",
+  "tracing",
++ "x509-parser",
+ ]
+ 
+ [[package]]
+@@ -5878,7 +6172,7 @@ checksum = "78ea1056caa9180e7e5727eed1a377d96c9f4615303fa82d2f4c202c64736dee"
  dependencies = [
   "async-trait",
   "educe",
@@ -493,7 +823,7 @@ index 5b15f068..7e74cb9a 100644
   "futures",
   "glob",
   "humantime",
-@@ -5936,7 +6125,7 @@ dependencies = [
+@@ -5936,7 +6230,7 @@ dependencies = [
   "clap 4.5.20",
   "console",
   "derive_more",
@@ -502,76 +832,191 @@ index 5b15f068..7e74cb9a 100644
   "futures",
   "glob",
   "itertools 0.12.1",
+@@ -7868,6 +8162,23 @@ dependencies = [
+  "tap",
+ ]
+ 
++[[package]]
++name = "x509-parser"
++version = "0.17.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "4569f339c0c402346d4a75a9e39cf8dad310e287eef1ff56d4c68e5067f53460"
++dependencies = [
++ "asn1-rs",
++ "data-encoding",
++ "der-parser",
++ "lazy_static",
++ "nom",
++ "oid-registry",
++ "rusticata-macros",
++ "thiserror 2.0.11",
++ "time",
++]
++
+ [[package]]
+ name = "xattr"
+ version = "1.3.1"
+diff --git a/Cargo.toml b/Cargo.toml
+index e4d7cf8c5..79bd3b7ab 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -66,7 +66,8 @@ lto = "thin"
+ 
+ [profile.dev]
+ opt-level = 0
+-debug = true
++debug = 1
++#debug = true #FIXME: put this back
+ debug-assertions = true
+ overflow-checks = true
+ lto = false
+@@ -129,7 +130,12 @@ arrayvec = "0.7.2"
+ async-stream = "0.3.6"
+ async-trait = "0.1.68"
+ axum = { version = "0.7", features = ["tracing"] }
++axum-server = { version = "0.7.2", features = ["tls-rustls"] }
+ axum-extra = { version = "0.9", features = ["typed-header"] }
++#rustls-platform-verifier = "0.5"
++x509-parser = "0.17"
++sha2="0.10.8"
++rustls-native-certs = "0.8"
+ backtrace = "0.3.66"
+ base64 = "0.21.2"
+ bigdecimal = "0.4.7"
+@@ -178,8 +184,8 @@ home = "0.5"
+ hostname = "^0.3"
+ http = "1.0"
+ humantime = "2.1.0"
+-hyper = "1.0"
+-hyper-util = { version = "0.1", features = ["tokio"] }
++hyper = "1.6"
++hyper-util = { version = "0.1.12", features = ["tokio"] }
+ imara-diff = "0.1.3"
+ indexmap = "2.0.0"
+ indicatif = "0.17"
+@@ -214,7 +220,12 @@ rand = "0.9"
+ rayon = "1.8"
+ rayon-core = "1.11.0"
+ regex = "1"
+-reqwest = { version = "0.12", features = ["stream", "json"] }
++reqwest = { version = "0.12", features = ["stream", "json", "native-tls"] }
++rustls-pemfile = "2.2"
++#rustls = "0.23"
++rustls= { version="0.23", default-features = true, features=[ "ring" ] }
++native-tls = "0.2"  # Explicitly add for Connector::NativeTls
++ring = "0.17"  # explicitly add this for the CryptoProvider, even tho it's included transitively.
+ ron = "0.8"
+ rusqlite = { version = "0.29.0", features = ["bundled", "column_decltype"] }
+ rust_decimal = { version = "1.29.1", features = ["db-tokio-postgres"] }
+@@ -317,3 +328,8 @@ features = [
+   "ondemand",
+ ]
+ 
++
++[patch.crates-io]
++#hyper = { path = "/home/user/SOURCE/my/channelclosed.reqwest/hyper" }
++hyper-util = { path = "/home/user/SOURCE/my/channelclosed.reqwest/hyper-util" }
++
 diff --git a/crates/cli/Cargo.toml b/crates/cli/Cargo.toml
-index 591d80a3..eca986ec 100644
+index 591d80a3c..fe693b517 100644
 --- a/crates/cli/Cargo.toml
 +++ b/crates/cli/Cargo.toml
-@@ -74,6 +74,7 @@ wasmbin.workspace = true
+@@ -74,6 +74,12 @@ wasmbin.workspace = true
  wasmtime.workspace = true
  webbrowser.workspace = true
  clap-markdown.workspace = true
-+native-tls = "0.2"
++#native-tls = "0.2"
++native-tls.workspace=true
++rustls-pemfile.workspace=true
++x509-parser.workspace=true
++sha2.workspace=true
++#hyper.workspace=true
  
  [target.'cfg(not(target_env = "msvc"))'.dependencies]
  tikv-jemallocator = { workspace = true }
 diff --git a/crates/cli/src/api.rs b/crates/cli/src/api.rs
-index d40b03ee..544a80b6 100644
+index d40b03ee8..cce80b6cb 100644
 --- a/crates/cli/src/api.rs
 +++ b/crates/cli/src/api.rs
-@@ -9,6 +9,8 @@ use spacetimedb_lib::de::serde::DeserializeWrapper;
+@@ -8,7 +8,11 @@ use spacetimedb_lib::db::raw_def::v9::RawModuleDefV9;
+ use spacetimedb_lib::de::serde::DeserializeWrapper;
  use spacetimedb_lib::Identity;
  
- use crate::util::{AuthHeader, ResponseExt};
+-use crate::util::{AuthHeader, ResponseExt};
++use crate::util::{AuthHeader, ResponseExt,
++map_request_error // fn and macro
++};
 +use crate::util;
 +use std::path::PathBuf;
  
  static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
  
-@@ -18,6 +20,7 @@ pub struct Connection {
+@@ -18,6 +22,11 @@ pub struct Connection {
      pub(crate) database_identity: Identity,
      pub(crate) database: String,
      pub(crate) auth_header: AuthHeader,
-+    pub(crate) cert_path: Option<PathBuf>, // FIXME: bad idea to put it here? else pass it as arg?
++    // FIXME: bad idea to put these next ones here? else pass'em as arg?
++    pub(crate) trust_server_cert_path: Option<PathBuf>,
++    pub(crate) client_cert_path: Option<PathBuf>,
++    pub(crate) client_key_path: Option<PathBuf>,
++    pub(crate) trust_system: bool,
  }
  
  impl Connection {
-@@ -34,7 +37,13 @@ impl Connection {
+@@ -34,7 +43,22 @@ impl Connection {
  }
  
  pub fn build_client(con: &Connection) -> Client {
 -    let mut builder = Client::builder().user_agent(APP_USER_AGENT);
++    let trust_server_cert_path=con.trust_server_cert_path.as_deref();
++    let client_cert_path=con.client_cert_path.as_deref();
++    let client_key_path=con.client_key_path.as_deref();
++    let trust_system=con.trust_system;
 +    //XXX: alternatively make this async and then make new() async, and ensure callers do .await on it
 +    let mut builder = tokio::task::block_in_place(|| {
 +        tokio::runtime::Handle::current()
-+            .block_on(util::configure_tls(con.cert_path.as_deref()))
++            .block_on(util::configure_tls(
++                    trust_server_cert_path,
++                    client_cert_path,
++                    client_key_path,
++                    trust_system
++                    ))
 +    })
 +    .unwrap();
 +    builder = builder.user_agent(APP_USER_AGENT);
  
      if let Some(auth_header) = con.auth_header.to_header() {
          let headers = http::HeaderMap::from_iter([(header::AUTHORIZATION, auth_header)]);
-@@ -42,7 +51,7 @@ pub fn build_client(con: &Connection) -> Client {
+@@ -42,7 +66,15 @@ pub fn build_client(con: &Connection) -> Client {
          builder = builder.default_headers(headers);
      }
  
 -    builder.build().unwrap()
-+    util::build_client_with_context(builder, con.cert_path.as_deref()).unwrap()
++    map_request_error!(
++        util::build_client_with_context(builder,
++            trust_server_cert_path,
++            client_cert_path,
++            client_key_path,
++            trust_system,
++        ), con.host, client_cert_path, client_key_path
++    )
++    .unwrap()
  }
  
  pub struct ClientApi {
 diff --git a/crates/cli/src/common_args.rs b/crates/cli/src/common_args.rs
-index a238ecbf..578d9363 100644
+index a238ecbf0..4ff8d27d2 100644
 --- a/crates/cli/src/common_args.rs
 +++ b/crates/cli/src/common_args.rs
 @@ -1,5 +1,6 @@
  use clap::Arg;
  use clap::ArgAction::SetTrue;
-+pub use spacetimedb_lib::cert;
++pub use spacetimedb_lib::{no_trust_system_root_store, trust_system_root_store, trust_server_cert, client_key, client_cert};
  
  pub fn server() -> Arg {
      Arg::new("server")
 diff --git a/crates/cli/src/config.rs b/crates/cli/src/config.rs
-index 1e709b89..5bf0cf5e 100644
+index 1e709b892..5bf0cf5ea 100644
 --- a/crates/cli/src/config.rs
 +++ b/crates/cli/src/config.rs
 @@ -177,21 +177,59 @@ impl RawConfig {
@@ -865,44 +1310,80 @@ index 1e709b89..5bf0cf5e 100644
  
      pub fn delete_server_fingerprint(&mut self, server: Option<&str>) -> anyhow::Result<()> {
 diff --git a/crates/cli/src/subcommands/call.rs b/crates/cli/src/subcommands/call.rs
-index c32a3944..a8375f9e 100644
+index c32a3944c..a142056e9 100644
 --- a/crates/cli/src/subcommands/call.rs
 +++ b/crates/cli/src/subcommands/call.rs
-@@ -30,6 +30,7 @@ pub fn cli() -> clap::Command {
+@@ -11,6 +11,7 @@ use spacetimedb_lib::sats::{self, AlgebraicType, Typespace};
+ use spacetimedb_lib::{Identity, ProductTypeElement};
+ use spacetimedb_schema::def::{ModuleDef, ReducerDef};
+ use std::fmt::Write;
++use std::path::{Path, PathBuf};
+ 
+ use super::sql::parse_req;
+ 
+@@ -30,6 +31,14 @@ pub fn cli() -> clap::Command {
                  .required(true)
                  .help("The name of the reducer to call"),
          )
-+        .arg(common_args::cert())
++        //.arg(common_args::cert())
++
++        .arg(common_args::trust_server_cert())
++        .arg(common_args::client_cert())
++        .arg(common_args::client_key())
++        .arg(common_args::trust_system_root_store())
++        .arg(common_args::no_trust_system_root_store())
++
          .arg(Arg::new("arguments").help("arguments formatted as JSON").num_args(1..))
          .arg(common_args::server().help("The nickname, host name or URL of the server hosting the database"))
          .arg(common_args::anonymous())
-@@ -42,7 +43,8 @@ pub async fn exec(config: Config, args: &ArgMatches) -> Result<(), Error> {
+@@ -42,7 +51,22 @@ pub async fn exec(config: Config, args: &ArgMatches) -> Result<(), Error> {
      let reducer_name = args.get_one::<String>("reducer_name").unwrap();
      let arguments = args.get_many::<String>("arguments");
  
 -    let conn = parse_req(config, args).await?;
-+    let cert_path = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
-+    let conn = parse_req(config, args, cert_path).await?;
++    // TLS arguments
++    let trust_server_cert_path: Option<&Path> = args.get_one::<PathBuf>("trust-server-cert").map(|p| p.as_path());
++    let client_cert_path: Option<&Path> = args.get_one::<PathBuf>("client-cert").map(|p| p.as_path());
++    let client_key_path: Option<&Path> = args.get_one::<PathBuf>("client-key").map(|p| p.as_path());
++
++    // for clients, default to true unless --no-trust-system-root-store
++    // because this is used to verify the received server cert which can be signed by public CA
++    // thus using system's trust/root store, by default, makes sense.
++    let trust_system = !args.get_flag("no-trust-system-root-store");
++
++    let conn = parse_req(config, args,
++        trust_server_cert_path,
++        client_cert_path,
++        client_key_path,
++        trust_system,
++    ).await?;
      let api = ClientApi::new(conn);
  
      let database_identity = api.con.database_identity;
 diff --git a/crates/cli/src/subcommands/delete.rs b/crates/cli/src/subcommands/delete.rs
-index e0d5c756..7391bd14 100644
+index e0d5c7561..3a5f7ecbd 100644
 --- a/crates/cli/src/subcommands/delete.rs
 +++ b/crates/cli/src/subcommands/delete.rs
-@@ -1,6 +1,6 @@
+@@ -1,7 +1,8 @@
  use crate::common_args;
  use crate::config::Config;
 -use crate::util::{add_auth_header_opt, database_identity, get_auth_header};
-+use crate::util::{add_auth_header_opt, database_identity, get_auth_header, build_client};
++use crate::util::{add_auth_header_opt, database_identity, get_auth_header, build_client, map_request_error};
  use clap::{Arg, ArgMatches};
++use std::path::{Path, PathBuf};
  
  pub fn cli() -> clap::Command {
-@@ -13,17 +13,23 @@ pub fn cli() -> clap::Command {
+     clap::Command::new("delete")
+@@ -13,17 +14,48 @@ pub fn cli() -> clap::Command {
          )
          .arg(common_args::server().help("The nickname, host name or URL of the server hosting the database"))
          .arg(common_args::yes())
-+        .arg(common_args::cert())
++
++        .arg(common_args::trust_server_cert())
++        .arg(common_args::client_cert())
++        .arg(common_args::client_key())
++        .arg(common_args::trust_system_root_store())
++        .arg(common_args::no_trust_system_root_store())
          .after_help("Run `spacetime help delete` for more detailed information.\n")
  }
  
@@ -914,133 +1395,338 @@ index e0d5c756..7391bd14 100644
      let force = args.get_flag("force");
  
 -    let identity = database_identity(&config, database, server).await?;
-+    let cert: Option<&std::path::Path> = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
++    // TLS arguments
++    let trust_server_cert_path: Option<&Path> = args.get_one::<PathBuf>("trust-server-cert").map(|p| p.as_path());
++    let client_cert_path: Option<&Path> = args.get_one::<PathBuf>("client-cert").map(|p| p.as_path());
++    let client_key_path: Option<&Path> = args.get_one::<PathBuf>("client-key").map(|p| p.as_path());
 +
-+    let client = build_client(cert).await?;
-+    let identity = database_identity(&config, database, server, &client).await?;
++    // for clients, default to true unless --no-trust-system-root-store
++    // because this is used to verify the received server cert which can be signed by public CA
++    // thus using system's trust/root store, by default, makes sense.
++    let trust_system = !args.get_flag("no-trust-system-root-store");
++
++    let host = config.get_host_url(server)?;
++    let client = map_request_error!(
++        build_client(
++            trust_server_cert_path,
++            client_cert_path,
++            client_key_path,
++            trust_system,
++        ).await
++        ,host, client_cert_path, client_key_path)
++        ?;
++    let identity = map_request_error!(
++        database_identity(&config, database, server, &client).await
++        ,host, client_cert_path, client_key_path)
++        ?;
  
 -    let builder = reqwest::Client::new().delete(format!("{}/v1/database/{}", config.get_host_url(server)?, identity));
-+    let builder = client.delete(format!("{}/v1/database/{}", config.get_host_url(server)?, identity));
++    let builder = client.delete(format!("{}/v1/database/{}", host, identity));
      let auth_header = get_auth_header(&mut config, false, server, !force).await?;
      let builder = add_auth_header_opt(builder, &auth_header);
      builder.send().await?.error_for_status()?;
 diff --git a/crates/cli/src/subcommands/describe.rs b/crates/cli/src/subcommands/describe.rs
-index 6f1759ff..fea482d0 100644
+index 6f1759ff7..2fbcf5acd 100644
 --- a/crates/cli/src/subcommands/describe.rs
 +++ b/crates/cli/src/subcommands/describe.rs
-@@ -40,6 +40,7 @@ pub fn cli() -> clap::Command {
+@@ -6,6 +6,7 @@ use crate::util::UNSTABLE_WARNING;
+ use anyhow::Context;
+ use clap::{Arg, ArgAction, ArgMatches};
+ use spacetimedb_lib::sats;
++use std::path::{Path, PathBuf};
+ 
+ pub fn cli() -> clap::Command {
+     clap::Command::new("describe")
+@@ -40,6 +41,12 @@ pub fn cli() -> clap::Command {
                       give human-readable output.",
                  ),
          )
-+        .arg(common_args::cert())
++        //.arg(common_args::cert())
++        .arg(common_args::trust_server_cert())
++        .arg(common_args::client_cert())
++        .arg(common_args::client_key())
++        .arg(common_args::trust_system_root_store())
++        .arg(common_args::no_trust_system_root_store())
          .arg(common_args::anonymous())
          .arg(common_args::server().help("The nickname, host name or URL of the server hosting the database"))
          .arg(common_args::yes())
-@@ -59,8 +60,9 @@ pub async fn exec(config: Config, args: &ArgMatches) -> Result<(), anyhow::Error
+@@ -59,8 +66,23 @@ pub async fn exec(config: Config, args: &ArgMatches) -> Result<(), anyhow::Error
      let entity_type = args.get_one::<EntityType>("entity_type");
      let entity = entity_type.zip(entity_name);
      let json = args.get_flag("json");
-+    let cert_path = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
++    // TLS arguments
++    let trust_server_cert_path: Option<&Path> = args.get_one::<PathBuf>("trust-server-cert").map(|p| p.as_path());
++    let client_cert_path: Option<&Path> = args.get_one::<PathBuf>("client-cert").map(|p| p.as_path());
++    let client_key_path: Option<&Path> = args.get_one::<PathBuf>("client-key").map(|p| p.as_path());
  
 -    let conn = parse_req(config, args).await?;
-+    let conn = parse_req(config, args, cert_path).await?;
++    // for clients, default to true unless --no-trust-system-root-store
++    // because this is used to verify the received server cert which can be signed by public CA
++    // thus using system's trust/root store, by default, makes sense.
++    let trust_system = !args.get_flag("no-trust-system-root-store");
++
++
++    let conn = parse_req(config, args,
++        trust_server_cert_path,
++        client_cert_path,
++        client_key_path,
++        trust_system,
++        ).await?;
      let api = ClientApi::new(conn);
  
      let module_def = api.module_def().await?;
 diff --git a/crates/cli/src/subcommands/dns.rs b/crates/cli/src/subcommands/dns.rs
-index 03f4e96b..b75d0d6d 100644
+index 03f4e96b3..8ea0b86ad 100644
 --- a/crates/cli/src/subcommands/dns.rs
 +++ b/crates/cli/src/subcommands/dns.rs
-@@ -20,6 +20,7 @@ pub fn cli() -> Command {
+@@ -1,8 +1,9 @@
+ use crate::common_args;
+ use crate::config::Config;
+-use crate::util::{add_auth_header_opt, decode_identity, get_auth_header, get_login_token_or_log_in, ResponseExt};
++use crate::util::{add_auth_header_opt, decode_identity, get_auth_header, get_login_token_or_log_in, ResponseExt, build_client, map_request_error};
+ use clap::ArgMatches;
+ use clap::{Arg, Command};
++use std::path::{Path, PathBuf};
+ 
+ use spacetimedb_client_api_messages::name::{DomainName, InsertDomainResult};
+ 
+@@ -20,6 +21,12 @@ pub fn cli() -> Command {
                  .required(true)
                  .help("The database identity to rename"),
          )
-+        .arg(common_args::cert())
++        //.arg(common_args::cert())
++        .arg(common_args::trust_server_cert())
++        .arg(common_args::client_cert())
++        .arg(common_args::client_key())
++        .arg(common_args::trust_system_root_store())
++        .arg(common_args::no_trust_system_root_store())
          .arg(common_args::server().help("The nickname, host name or URL of the server on which to set the name"))
          .arg(common_args::yes())
          .after_help("Run `spacetime rename --help` for more detailed information.\n")
-@@ -33,10 +34,12 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+@@ -33,18 +40,40 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
      let token = get_login_token_or_log_in(&mut config, server, !force).await?;
      let identity = decode_identity(&token)?;
      let auth_header = get_auth_header(&mut config, false, server, !force).await?;
-+    let cert: Option<&std::path::Path> = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
++    // TLS arguments
++    let trust_server_cert_path: Option<&Path> = args.get_one::<PathBuf>("trust-server-cert").map(|p| p.as_path());
++    let client_cert_path: Option<&Path> = args.get_one::<PathBuf>("client-cert").map(|p| p.as_path());
++    let client_key_path: Option<&Path> = args.get_one::<PathBuf>("client-key").map(|p| p.as_path());
++
++    // for clients, default to true unless --no-trust-system-root-store
++    // because this is used to verify the received server cert which can be signed by public CA
++    // thus using system's trust/root store, by default, makes sense.
++    let trust_system = !args.get_flag("no-trust-system-root-store");
  
      let domain: DomainName = domain.parse()?;
  
 -    let builder = reqwest::Client::new()
-+    let client = crate::util::build_client(cert).await?;
++    let host = config.get_host_url(server)?;
++    let client = map_request_error!(
++        build_client(
++            trust_server_cert_path,
++            client_cert_path,
++            client_key_path,
++            trust_system,
++        ).await
++        , host, client_cert_path, client_key_path)
++        ?;
 +    let builder = client
          .post(format!(
              "{}/v1/database/{database_identity}/names",
-             config.get_host_url(server)?
+-            config.get_host_url(server)?
++            host
+         ))
+         .body(String::from(domain));
+     let builder = add_auth_header_opt(builder, &auth_header);
+ 
+-    let result = builder.send().await?.json_or_error().await?;
++    let result = map_request_error!(
++        builder.send().await
++        , host, client_cert_path, client_key_path)
++    ?.json_or_error().await?;
+     match result {
+         InsertDomainResult::Success {
+             domain,
 diff --git a/crates/cli/src/subcommands/energy.rs b/crates/cli/src/subcommands/energy.rs
-index 0d4249e2..a01b03b8 100644
+index 0d4249e23..247919cec 100644
 --- a/crates/cli/src/subcommands/energy.rs
 +++ b/crates/cli/src/subcommands/energy.rs
-@@ -30,6 +30,7 @@ fn get_energy_subcommands() -> Vec<clap::Command> {
+@@ -3,7 +3,8 @@ use crate::common_args;
+ use clap::ArgMatches;
+ 
+ use crate::config::Config;
+-use crate::util::{self, get_login_token_or_log_in, UNSTABLE_WARNING};
++use crate::util::{self, get_login_token_or_log_in, UNSTABLE_WARNING, build_client, map_request_error};
++use std::path::{Path, PathBuf};
+ 
+ pub fn cli() -> clap::Command {
+     clap::Command::new("energy")
+@@ -30,6 +31,12 @@ fn get_energy_subcommands() -> Vec<clap::Command> {
              common_args::server()
                  .help("The nickname, host name or URL of the server from which to request balance information"),
          )
-+        .arg(common_args::cert())
++        //.arg(common_args::cert())
++        .arg(common_args::trust_server_cert())
++        .arg(common_args::client_cert())
++        .arg(common_args::client_key())
++        .arg(common_args::trust_system_root_store())
++        .arg(common_args::no_trust_system_root_store())
          .arg(common_args::yes())]
  }
  
-@@ -58,8 +59,10 @@ async fn exec_status(mut config: Config, args: &ArgMatches) -> Result<(), anyhow
+@@ -58,11 +65,35 @@ async fn exec_status(mut config: Config, args: &ArgMatches) -> Result<(), anyhow
          let token = get_login_token_or_log_in(&mut config, server, !force).await?;
          util::decode_identity(&token)?
      };
-+    let cert: Option<&std::path::Path> = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
-+    let client = crate::util::build_client(cert).await?;
++    // TLS arguments
++    let trust_server_cert_path: Option<&Path> = args.get_one::<PathBuf>("trust-server-cert").map(|p| p.as_path());
++    let client_cert_path: Option<&Path> = args.get_one::<PathBuf>("client-cert").map(|p| p.as_path());
++    let client_key_path: Option<&Path> = args.get_one::<PathBuf>("client-key").map(|p| p.as_path());
  
 -    let status = reqwest::Client::new()
-+    let status = client
-         .get(format!("{}/v1/energy/{}", config.get_host_url(server)?, identity))
+-        .get(format!("{}/v1/energy/{}", config.get_host_url(server)?, identity))
++    // for clients, default to true unless --no-trust-system-root-store
++    // because this is used to verify the received server cert which can be signed by public CA
++    // thus using system's trust/root store, by default, makes sense.
++    let trust_system = !args.get_flag("no-trust-system-root-store");
++
++    let host = config.get_host_url(server)?;
++
++    let client = map_request_error!(
++        build_client(
++            trust_server_cert_path,
++            client_cert_path,
++            client_key_path,
++            trust_system,
++        ).await
++        ,host, client_cert_path, client_key_path)
++        ?;
++
++    let status = map_request_error!(
++        client
++        .get(format!("{}/v1/energy/{}", host, identity))
          .send()
-         .await?
+-        .await?
++        .await
++        ,host, client_cert_path, client_key_path)
++        ?
+         .error_for_status()?
+         .text()
+         .await?;
 diff --git a/crates/cli/src/subcommands/list.rs b/crates/cli/src/subcommands/list.rs
-index 8080af3c..d048b782 100644
+index 8080af3c7..be1ec8178 100644
 --- a/crates/cli/src/subcommands/list.rs
 +++ b/crates/cli/src/subcommands/list.rs
-@@ -19,6 +19,7 @@ pub fn cli() -> Command {
+@@ -3,6 +3,7 @@ use crate::util;
+ use crate::util::get_login_token_or_log_in;
+ use crate::util::ResponseExt;
+ use crate::util::UNSTABLE_WARNING;
++use crate::util::map_request_error;
+ use crate::Config;
+ use anyhow::Context;
+ use clap::{ArgMatches, Command};
+@@ -12,6 +13,7 @@ use tabled::{
+     settings::{object::Columns, Alignment, Modify, Style},
+     Table, Tabled,
+ };
++use std::path::{Path, PathBuf};
+ 
+ pub fn cli() -> Command {
+     Command::new("list")
+@@ -19,6 +21,12 @@ pub fn cli() -> Command {
              "Lists the databases attached to an identity. {}",
              UNSTABLE_WARNING
          ))
-+        .arg(common_args::cert())
++        //.arg(common_args::cert())
++        .arg(common_args::trust_server_cert())
++        .arg(common_args::client_cert())
++        .arg(common_args::client_key())
++        .arg(common_args::trust_system_root_store())
++        .arg(common_args::no_trust_system_root_store())
          .arg(common_args::server().help("The nickname, host name or URL of the server from which to list databases"))
          .arg(common_args::yes())
  }
-@@ -42,7 +43,8 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+@@ -42,16 +50,38 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
      let token = get_login_token_or_log_in(&mut config, server, !force).await?;
      let identity = util::decode_identity(&token)?;
  
 -    let client = reqwest::Client::new();
-+    let cert: Option<&std::path::Path> = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
-+    let client = util::build_client(cert).await?;
-     let res = client
+-    let res = client
++    // TLS arguments
++    let trust_server_cert_path: Option<&Path> = args.get_one::<PathBuf>("trust-server-cert").map(|p| p.as_path());
++    let client_cert_path: Option<&Path> = args.get_one::<PathBuf>("client-cert").map(|p| p.as_path());
++    let client_key_path: Option<&Path> = args.get_one::<PathBuf>("client-key").map(|p| p.as_path());
++
++    // for clients, default to true unless --no-trust-system-root-store
++    // because this is used to verify the received server cert which can be signed by public CA
++    // thus using system's trust/root store, by default, makes sense.
++    let trust_system = !args.get_flag("no-trust-system-root-store");
++
++    let host = config.get_host_url(server)?;
++    let client = map_request_error!(
++        util::build_client(
++            trust_server_cert_path,
++            client_cert_path,
++            client_key_path,
++            trust_system,
++        ).await
++        , host, client_cert_path, client_key_path)
++        ?;
++    let res = map_request_error!(
++        client
          .get(format!(
-             "{}/v1/identity/{}/databases",
+-            "{}/v1/identity/{}/databases",
+-            config.get_host_url(server)?,
+-            identity
++                "{}/v1/identity/{}/databases",
++                host,
++                identity
+         ))
+         .bearer_auth(token)
+         .send()
+-        .await?;
++        .await
++        , host, client_cert_path, client_key_path) 
++        ?;
+ 
+     let result: DatabasesResult = res
+         .json_or_error()
 diff --git a/crates/cli/src/subcommands/login.rs b/crates/cli/src/subcommands/login.rs
-index 8e2568b4..d009d122 100644
+index 8e2568b47..5eafa596d 100644
 --- a/crates/cli/src/subcommands/login.rs
 +++ b/crates/cli/src/subcommands/login.rs
-@@ -1,4 +1,4 @@
+@@ -1,9 +1,11 @@
 -use crate::util::decode_identity;
-+use crate::util::{decode_identity, build_client};
++use crate::util::{decode_identity, build_client, map_request_error};
  use crate::Config;
  use clap::{Arg, ArgAction, ArgGroup, ArgMatches, Command};
  use reqwest::Url;
-@@ -31,6 +31,7 @@ pub fn cli() -> Command {
+ use serde::Deserialize;
+ use webbrowser;
++use crate::common_args;
++use std::path::{Path, PathBuf};
+ 
+ pub const DEFAULT_AUTH_HOST: &str = "https://spacetimedb.com";
+ 
+@@ -31,6 +33,12 @@ pub fn cli() -> Command {
                  .group("login-method")
                  .help("Bypass the login flow and use a login token directly"),
          )
-+        .arg(crate::common_args::cert())
++        //.arg(crate::common_args::cert())
++        .arg(common_args::trust_server_cert())
++        .arg(common_args::client_cert())
++        .arg(common_args::client_key())
++        .arg(common_args::trust_system_root_store())
++        .arg(common_args::no_trust_system_root_store())
          .about("Manage your login to the SpacetimeDB CLI")
  }
  
-@@ -53,7 +54,18 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+@@ -52,8 +60,26 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+ 
      let spacetimedb_token: Option<&String> = args.get_one("spacetimedb-token");
      let host: &String = args.get_one("auth-host").unwrap();
-     let host = Url::parse(host)?;
+-    let host = Url::parse(host)?;
++    let mut host = Url::parse(host)?;
 +    // XXX: specifying an url for the server below, instead of an existing nickname, will cause 'login' to
 +    // succeed but you might wrongly assume like I did in https://github.com/clockworklabs/SpacetimeDB/issues/2512
 +    // that any subsequent commands like `spacetime publish` will use that server that you specified
@@ -1050,51 +1736,95 @@ index 8e2568b4..d009d122 100644
 +    // to the list you've to use `spacetime server help`
 +    // so let's warn, but allow this behavior.
      let server_issued_login: Option<&String> = args.get_one("server");
++//    if let Some(server) = server_issued_login {
++//    }//if
++    let sil:bool=
 +    if let Some(server) = server_issued_login {
-+        eprintln!("WARNING: the server that you specified here as '{}' isn't the one that will be used by commands like 'spacetime publish' but instead it's the one listed on 'spacetime server list' as the default (3 stars) that will be used, eg. 127.0.0.1:3000 if you haven't manually added any via 'spacetime server add'.\n",server);//extra new line
-+    }//if
++        host = Url::parse(&config.get_host_url(Some(server))?)?;
++        eprintln!("WARNING: the server that you specified here as '{}'(aka {}) isn't the one that will be used by commands like 'spacetime publish' but instead it's the one listed on 'spacetime server list' as the default (3 stars) that will be used, eg. 127.0.0.1:3000 if you haven't manually added any via 'spacetime server add'.\n",server, host);//extra new line
++        true
++    } else {
++        false
++    };
  
      if let Some(token) = spacetimedb_token {
          config.set_spacetimedb_token(token.clone());
-@@ -61,11 +73,12 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+@@ -61,12 +87,25 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
          return Ok(());
      }
  
-+    let cert: Option<&std::path::Path> = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
-     if let Some(server) = server_issued_login {
-         let host = Url::parse(&config.get_host_url(Some(server))?)?;
+-    if let Some(server) = server_issued_login {
+-        let host = Url::parse(&config.get_host_url(Some(server))?)?;
 -        spacetimedb_token_cached(&mut config, &host, true).await?;
-+        spacetimedb_token_cached(&mut config, &host, true, cert).await?;
-     } else {
+-    } else {
 -        spacetimedb_token_cached(&mut config, &host, false).await?;
-+        spacetimedb_token_cached(&mut config, &host, false, cert).await?;
-     }
+-    }
++    // TLS arguments
++    let trust_server_cert_path: Option<&Path> = args.get_one::<PathBuf>("trust-server-cert").map(|p| p.as_path());
++    let client_cert_path: Option<&Path> = args.get_one::<PathBuf>("client-cert").map(|p| p.as_path());
++    let client_key_path: Option<&Path> = args.get_one::<PathBuf>("client-key").map(|p| p.as_path());
++
++    // for clients, default to true unless --no-trust-system-root-store
++    // because this is used to verify the received server cert which can be signed by public CA
++    // thus using system's trust/root store, by default, makes sense.
++    let trust_system = !args.get_flag("no-trust-system-root-store");
++
++    map_request_error!(
++        spacetimedb_token_cached(&mut config, &host, sil,
++            trust_server_cert_path,
++            client_cert_path,
++            client_key_path,
++            trust_system,
++        ).await
++        , host.to_string(), client_cert_path, client_key_path)
++        ?;
  
      Ok(())
-@@ -98,7 +111,7 @@ async fn exec_show(config: Config, args: &ArgMatches) -> Result<(), anyhow::Erro
+ }
+@@ -98,7 +137,12 @@ async fn exec_show(config: Config, args: &ArgMatches) -> Result<(), anyhow::Erro
      Ok(())
  }
  
 -async fn spacetimedb_token_cached(config: &mut Config, host: &Url, direct_login: bool) -> anyhow::Result<String> {
-+async fn spacetimedb_token_cached(config: &mut Config, host: &Url, direct_login: bool, cert: Option<&std::path::Path>) -> anyhow::Result<String> {
++async fn spacetimedb_token_cached(config: &mut Config, host: &Url, direct_login: bool,
++    trust_server_cert_path: Option<&Path>,
++    client_cert_path: Option<&Path>,
++    client_key_path: Option<&Path>,
++    trust_system: bool,
++    ) -> anyhow::Result<String> {
      // Currently, this token does not expire. However, it will at some point in the future. When that happens,
      // this code will need to happen before any request to a spacetimedb server, rather than at the end of the login flow here.
      if let Some(token) = config.spacetimedb_token() {
-@@ -106,17 +119,19 @@ async fn spacetimedb_token_cached(config: &mut Config, host: &Url, direct_login:
+@@ -106,17 +150,34 @@ async fn spacetimedb_token_cached(config: &mut Config, host: &Url, direct_login:
          println!("If you want to log out, use spacetime logout.");
          Ok(token.clone())
      } else {
 -        spacetimedb_login_force(config, host, direct_login).await
-+        spacetimedb_login_force(config, host, direct_login, cert).await
++        spacetimedb_login_force(config, host, direct_login,
++            trust_server_cert_path,
++            client_cert_path,
++            client_key_path,
++            trust_system,
++        ).await
      }
  }
  
 -pub async fn spacetimedb_login_force(config: &mut Config, host: &Url, direct_login: bool) -> anyhow::Result<String> {
-+pub async fn spacetimedb_login_force(config: &mut Config, host: &Url, direct_login: bool, cert: Option<&std::path::Path>) -> anyhow::Result<String> {
++pub async fn spacetimedb_login_force(config: &mut Config, host: &Url, direct_login: bool,
++    trust_server_cert_path: Option<&Path>,
++    client_cert_path: Option<&Path>,
++    client_key_path: Option<&Path>,
++    trust_system: bool,
++) -> anyhow::Result<String> {
      let token = if direct_login {
 -        let token = spacetimedb_direct_login(host).await?;
 +        println!("We will log in directly to your target server.");
-+        let token = spacetimedb_direct_login(host, cert).await?;
++        let token = spacetimedb_direct_login(host,
++            trust_server_cert_path,
++            client_cert_path,
++            client_key_path,
++            trust_system,
++        ).await?;
          println!("We have logged in directly to your target server.");
          println!("WARNING: This login will NOT work for any other servers.");
          token
@@ -1103,54 +1833,98 @@ index 8e2568b4..d009d122 100644
          let session_token = web_login_cached(config, host).await?;
          spacetimedb_login(host, &session_token).await?
      };
-@@ -271,8 +286,9 @@ struct LocalLoginResponse {
+@@ -271,8 +332,19 @@ struct LocalLoginResponse {
      pub token: String,
  }
  
 -async fn spacetimedb_direct_login(host: &Url) -> Result<String, anyhow::Error> {
 -    let client = reqwest::Client::new();
-+async fn spacetimedb_direct_login(host: &Url, cert: Option<&std::path::Path>) -> Result<String, anyhow::Error> {
-+    let client = build_client(cert.as_deref()).await?;
++async fn spacetimedb_direct_login(host: &Url,
++    trust_server_cert_path: Option<&Path>,
++    client_cert_path: Option<&Path>,
++    client_key_path: Option<&Path>,
++    trust_system: bool,
++) -> Result<String, anyhow::Error> {
++    let client = build_client(
++        trust_server_cert_path,
++        client_cert_path,
++        client_key_path,
++        trust_system,
++    ).await?;
 +
      let response: LocalLoginResponse = client
          .post(host.join("/v1/identity")?)
          .send()
 diff --git a/crates/cli/src/subcommands/logs.rs b/crates/cli/src/subcommands/logs.rs
-index c92a6f01..4f6cb8a6 100644
+index c92a6f01c..5642675c7 100644
 --- a/crates/cli/src/subcommands/logs.rs
 +++ b/crates/cli/src/subcommands/logs.rs
-@@ -3,7 +3,7 @@ use std::io::{self, Write};
+@@ -3,12 +3,13 @@ use std::io::{self, Write};
  
  use crate::common_args;
  use crate::config::Config;
 -use crate::util::{add_auth_header_opt, database_identity, get_auth_header};
-+use crate::util::{add_auth_header_opt, database_identity, get_auth_header, build_client};
++use crate::util::{add_auth_header_opt, database_identity, get_auth_header, build_client, map_request_error};
  use clap::{Arg, ArgAction, ArgMatches};
  use futures::{AsyncBufReadExt, TryStreamExt};
  use is_terminal::IsTerminal;
-@@ -48,6 +48,7 @@ pub fn cli() -> clap::Command {
+ use termcolor::{Color, ColorSpec, WriteColor};
+ use tokio::io::AsyncWriteExt;
++use std::path::{Path, PathBuf};
+ 
+ pub fn cli() -> clap::Command {
+     clap::Command::new("logs")
+@@ -48,6 +49,12 @@ pub fn cli() -> clap::Command {
                  .help("Output format for the logs")
          )
          .arg(common_args::yes())
-+        .arg(common_args::cert())
++        //.arg(common_args::cert())
++        .arg(common_args::trust_server_cert())
++        .arg(common_args::client_cert())
++        .arg(common_args::client_key())
++        .arg(common_args::trust_system_root_store())
++        .arg(common_args::no_trust_system_root_store())
          .after_help("Run `spacetime help logs` for more detailed information.\n")
  }
  
-@@ -120,7 +121,10 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+@@ -120,7 +127,31 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
  
      let auth_header = get_auth_header(&mut config, false, server, !force).await?;
  
 -    let database_identity = database_identity(&config, database, server).await?;
-+    let cert: Option<&std::path::Path> = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
++    // TLS arguments
++    let trust_server_cert_path: Option<&Path> = args.get_one::<PathBuf>("trust-server-cert").map(|p| p.as_path());
++    let client_cert_path: Option<&Path> = args.get_one::<PathBuf>("client-cert").map(|p| p.as_path());
++    let client_key_path: Option<&Path> = args.get_one::<PathBuf>("client-key").map(|p| p.as_path());
 +
-+    let client = build_client(cert).await?;
-+    let database_identity = database_identity(&config, database, server, &client).await?;
++    // for clients, default to true unless --no-trust-system-root-store
++    // because this is used to verify the received server cert which can be signed by public CA
++    // thus using system's trust/root store, by default, makes sense.
++    let trust_system = !args.get_flag("no-trust-system-root-store");
++
++    let host_url = config.get_host_url(server)?;
++
++    let client = map_request_error!(
++        build_client(
++            trust_server_cert_path,
++            client_cert_path,
++            client_key_path,
++            trust_system,
++        ).await
++        , host_url, client_cert_path, client_key_path)
++        ?;
++    let database_identity = map_request_error!(
++        database_identity(&config, database, server, &client).await
++        , host_url, client_cert_path, client_key_path)
++        ?;
  
      if follow && num_lines.is_none() {
          // We typically don't want logs from the very beginning if we're also following.
-@@ -130,7 +134,7 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+@@ -128,9 +159,8 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+     }
+     let query_parms = LogsParams { num_lines, follow };
  
-     let host_url = config.get_host_url(server)?;
+-    let host_url = config.get_host_url(server)?;
  
 -    let builder = reqwest::Client::new().get(format!("{}/v1/database/{}/logs", host_url, database_identity));
 +    let builder = client.get(format!("{}/v1/database/{}/logs", host_url, database_identity));
@@ -1158,45 +1932,72 @@ index c92a6f01..4f6cb8a6 100644
      let mut res = builder.query(&query_parms).send().await?;
      let status = res.status();
 diff --git a/crates/cli/src/subcommands/publish.rs b/crates/cli/src/subcommands/publish.rs
-index 65cdf343..7c6283ef 100644
+index 65cdf343c..473cfcd45 100644
 --- a/crates/cli/src/subcommands/publish.rs
 +++ b/crates/cli/src/subcommands/publish.rs
-@@ -9,7 +9,7 @@ use std::path::PathBuf;
+@@ -5,11 +5,11 @@ use reqwest::{StatusCode, Url};
+ use spacetimedb_client_api_messages::name::PublishOp;
+ use spacetimedb_client_api_messages::name::{is_identity, parse_database_name, PublishResult};
+ use std::fs;
+-use std::path::PathBuf;
++use std::path::{Path, PathBuf};
  
  use crate::config::Config;
  use crate::util::{add_auth_header_opt, get_auth_header, ResponseExt};
 -use crate::util::{decode_identity, unauth_error_context, y_or_n};
-+use crate::util::{decode_identity, unauth_error_context, y_or_n, build_client};
++use crate::util::{decode_identity, unauth_error_context, y_or_n, build_client, map_request_error};
  use crate::{build, common_args};
  
  pub fn cli() -> clap::Command {
-@@ -63,6 +63,7 @@ i.e. only lowercase ASCII letters and numbers, separated by dashes."),
+@@ -63,6 +63,12 @@ i.e. only lowercase ASCII letters and numbers, separated by dashes."),
          .arg(common_args::server()
                  .help("The nickname, domain name or URL of the server to host the database."),
          )
-+        .arg(common_args::cert())
++//        .arg(common_args::cert())
++        .arg(common_args::trust_server_cert())
++        .arg(common_args::client_cert())
++        .arg(common_args::client_key())
++        .arg(common_args::trust_system_root_store())
++        .arg(common_args::no_trust_system_root_store())
          .arg(
              common_args::yes()
          )
-@@ -79,6 +80,8 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+@@ -79,6 +85,17 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
      let wasm_file = args.get_one::<PathBuf>("wasm_file");
      let database_host = config.get_host_url(server)?;
      let build_options = args.get_one::<String>("build_options").unwrap();
-+    let cert_path: Option<&std::path::Path> = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
++    // TLS arguments
++    let trust_server_cert_path: Option<&Path> = args.get_one::<PathBuf>("trust-server-cert").map(|p| p.as_path());
++    let client_cert_path: Option<&Path> = args.get_one::<PathBuf>("client-cert").map(|p| p.as_path());
++    let client_key_path: Option<&Path> = args.get_one::<PathBuf>("client-key").map(|p| p.as_path());
++
++    // for clients, default to true unless --no-trust-system-root-store
++    // because this is used to verify the received server cert which can be signed by public CA
++    // thus using system's trust/root store, by default, makes sense.
++    let trust_system = !args.get_flag("no-trust-system-root-store");
++
 +
  
      // If the user didn't specify an identity and we didn't specify an anonymous identity, then
      // we want to use the default identity
-@@ -86,7 +89,7 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+@@ -86,7 +103,15 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
      //  easily create a new identity with an email
      let auth_header = get_auth_header(&mut config, anon_identity, server, !force).await?;
  
 -    let client = reqwest::Client::new();
-+    let client = build_client(cert_path).await?;
++    let client = map_request_error!(
++        build_client(
++            trust_server_cert_path,
++            client_cert_path,
++            client_key_path,
++            trust_system,
++        ).await
++        , database_host, client_cert_path, client_key_path)
++        ?;
  
      // If a domain or identity was provided, we should locally make sure it looks correct and
      let mut builder = if let Some(name_or_identity) = name_or_identity {
-@@ -119,7 +122,16 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+@@ -119,7 +144,16 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
          let url = Url::parse(&database_host)?;
          url.host_str().unwrap_or("<default>").to_string()
      };
@@ -1214,80 +2015,137 @@ index 65cdf343..7c6283ef 100644
          println!("You are about to publish to a non-local server: {}", server_address);
          if !y_or_n(force, "Are you sure you want to proceed?")? {
              println!("Aborting");
+@@ -157,7 +191,10 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
+ 
+     builder = add_auth_header_opt(builder, &auth_header);
+ 
+-    let res = builder.body(program_bytes).send().await?;
++    let res = map_request_error!(
++        builder.body(program_bytes).send().await
++        , database_host, client_cert_path, client_key_path)
++        ?;
+     if res.status() == StatusCode::UNAUTHORIZED && !anon_identity {
+         // If we're not in the `anon_identity` case, then we have already forced the user to log in above (using `get_auth_header`), so this should be safe to unwrap.
+         let token = config.spacetimedb_token().unwrap();
 diff --git a/crates/cli/src/subcommands/server.rs b/crates/cli/src/subcommands/server.rs
-index 611919a6..d9d81045 100644
+index 611919a63..a3586fd85 100644
 --- a/crates/cli/src/subcommands/server.rs
 +++ b/crates/cli/src/subcommands/server.rs
-@@ -1,6 +1,6 @@
+@@ -1,6 +1,11 @@
++//use spacetimedb_lib::map_request_error;//this must be at crate level! else func call within macro will fail at compile time.
++//use crate::util::map_request_error;// it's a reimport of spacetimedb_lib::map_request_error
++
  use crate::{
      common_args,
 -    util::{host_or_url_to_host_and_protocol, spacetime_server_fingerprint, y_or_n, UNSTABLE_WARNING, VALID_PROTOCOLS},
-+    util::{host_or_url_to_host_and_protocol, spacetime_server_fingerprint, y_or_n, UNSTABLE_WARNING, VALID_PROTOCOLS, build_client},
++    util::{host_or_url_to_host_and_protocol, spacetime_server_fingerprint, y_or_n, UNSTABLE_WARNING, VALID_PROTOCOLS, build_client,
++    map_request_error, // this is macro & fn both
++    },
      Config,
  };
  use anyhow::Context;
-@@ -10,6 +10,7 @@ use tabled::{
+@@ -10,6 +15,7 @@ use tabled::{
      settings::{object::Columns, Alignment, Modify, Style},
      Table, Tabled,
  };
-+use std::path::Path;
++use std::path::{Path, PathBuf};
  
  pub fn cli() -> Command {
      Command::new("server")
-@@ -53,7 +54,8 @@ fn get_subcommands() -> Vec<Command> {
+@@ -53,8 +59,13 @@ fn get_subcommands() -> Vec<Command> {
                      .help("Skip fingerprinting the server")
                      .long("no-fingerprint")
                      .action(ArgAction::SetTrue),
 -            ),
+-        Command::new("remove")
 +            )
-+            .arg(common_args::cert()),
-         Command::new("remove")
++        .arg(common_args::trust_server_cert())
++        .arg(common_args::client_cert())
++        .arg(common_args::client_key())
++        .arg(common_args::trust_system_root_store())
++        .arg(common_args::no_trust_system_root_store())
++        ,Command::new("remove")
              .about("Remove a saved server configuration")
              .arg(
-@@ -69,6 +71,7 @@ fn get_subcommands() -> Vec<Command> {
+                 Arg::new("server")
+@@ -69,6 +80,11 @@ fn get_subcommands() -> Vec<Command> {
                      .required(true)
                      .help("The nickname, host name or URL of the server"),
              )
-+            .arg(common_args::cert())
++        .arg(common_args::trust_server_cert())
++        .arg(common_args::client_cert())
++        .arg(common_args::client_key())
++        .arg(common_args::trust_system_root_store())
++        .arg(common_args::no_trust_system_root_store())
              .arg(common_args::yes()),
          Command::new("ping")
              .about("Checks to see if a SpacetimeDB host is online")
-@@ -76,7 +79,8 @@ fn get_subcommands() -> Vec<Command> {
+@@ -76,8 +92,13 @@ fn get_subcommands() -> Vec<Command> {
                  Arg::new("server")
                      .required(true)
                      .help("The nickname, host name or URL of the server to ping"),
 -            ),
+-        Command::new("edit")
 +            )
-+            .arg(common_args::cert()),
-         Command::new("edit")
++        .arg(common_args::trust_server_cert())
++        .arg(common_args::client_cert())
++        .arg(common_args::client_key())
++        .arg(common_args::trust_system_root_store())
++        .arg(common_args::no_trust_system_root_store())
++        ,Command::new("edit")
              .about("Update a saved server's nickname, host name or protocol")
              .arg(
-@@ -100,6 +104,7 @@ fn get_subcommands() -> Vec<Command> {
+                 Arg::new("server")
+@@ -100,6 +121,11 @@ fn get_subcommands() -> Vec<Command> {
                      .long("no-fingerprint")
                      .action(ArgAction::SetTrue),
              )
-+            .arg(common_args::cert())
++        .arg(common_args::trust_server_cert())
++        .arg(common_args::client_cert())
++        .arg(common_args::client_key())
++        .arg(common_args::trust_system_root_store())
++        .arg(common_args::no_trust_system_root_store())
              .arg(common_args::yes()),
          Command::new("clear")
              .about("Deletes all data from all local databases")
-@@ -195,6 +200,11 @@ pub async fn exec_add(mut config: Config, args: &ArgMatches) -> Result<(), anyho
+@@ -195,6 +221,24 @@ pub async fn exec_add(mut config: Config, args: &ArgMatches) -> Result<(), anyho
      let nickname = args.get_one::<String>("name");
      let default = *args.get_one::<bool>("default").unwrap();
      let no_fingerprint = *args.get_one::<bool>("no-fingerprint").unwrap();
-+    let cert_path = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
++    // TLS arguments
++    let trust_server_cert_path: Option<&Path> = args.get_one::<PathBuf>("trust-server-cert").map(|p| p.as_path());
++    let client_cert_path: Option<&Path> = args.get_one::<PathBuf>("client-cert").map(|p| p.as_path());
++    let client_key_path: Option<&Path> = args.get_one::<PathBuf>("client-key").map(|p| p.as_path());
 +
-+    if no_fingerprint && cert_path.is_some() {
-+        eprintln!("WARNING: --cert ignored while using --no-fingerprint");
-+    }
++    // for clients, default to true unless --no-trust-system-root-store
++    // because this is used to verify the received server cert which can be signed by public CA
++    // thus using system's trust/root store, by default, makes sense.
++    let trust_system = !args.get_flag("no-trust-system-root-store");
++
++//    if no_fingerprint {
++//        if trust_server_cert_path.is_some() {
++//            eprintln!("WARNING: --cert ignored while using --no-fingerprint");
++//        }
++//        if client_cert_path.is_some() {
++//            eprintln!("WARNING:  ignored while using --no-fingerprint");
++//        }
++//    }
  
      let (host, protocol) = host_or_url_to_host_and_protocol(url);
      let protocol = protocol.ok_or_else(|| anyhow::anyhow!("Invalid url: {}", url))?;
-@@ -204,12 +214,13 @@ pub async fn exec_add(mut config: Config, args: &ArgMatches) -> Result<(), anyho
+@@ -204,14 +248,36 @@ pub async fn exec_add(mut config: Config, args: &ArgMatches) -> Result<(), anyho
      let fingerprint = if no_fingerprint {
          None
      } else {
 -        let fingerprint = spacetime_server_fingerprint(url).await.with_context(|| {
-+        let fingerprint = spacetime_server_fingerprint(url, cert_path).await.with_context(|| {
++        let fingerprint = //map_request_error!(
++            spacetime_server_fingerprint(
++            &url.to_string(),
++            trust_server_cert_path,
++            client_cert_path,
++            client_key_path,
++            trust_system,
++        ).await.with_context(|| {
              format!(
                  "Unable to retrieve fingerprint for server: {url}
  Is the server running?
@@ -1296,9 +2154,26 @@ index 611919a6..d9d81045 100644
 +\tspacetime server add --url {url} --no-fingerprint
 +or provide a trusted --cert."
              )
-         })?;
+-        })?;
++        })
++//        ,url.to_string(), client_cert_path, client_key_path)
++        ?;
++        //?;
++//        .map_err(|e| spacetimedb_lib::map_request_error(e, &url.to_string(), client_cert_path.as_deref(), client_key_path.as_deref()))?;
++//        .with_context(|e| {
++//            spacetimedb_lib::map_request_error(
++//                //anyhow::anyhow!("request failed"),
++//                e,
++//                &url.to_string(),
++//                client_cert_path.as_deref(),
++//                client_key_path.as_deref(),
++//            )
++//                .to_string()
++//        })?;
          println!("For server {}, got fingerprint:\n{}", url, fingerprint);
-@@ -224,7 +235,6 @@ Add a server without retrieving its fingerprint with:
+         Some(fingerprint)
+     };
+@@ -224,7 +290,6 @@ Add a server without retrieving its fingerprint with:
  
      println!("Host: {}", host);
      println!("Protocol: {}", protocol);
@@ -1306,7 +2181,7 @@ index 611919a6..d9d81045 100644
      config.save();
  
      Ok(())
-@@ -240,25 +250,51 @@ pub async fn exec_remove(mut config: Config, args: &ArgMatches) -> Result<(), an
+@@ -240,25 +305,62 @@ pub async fn exec_remove(mut config: Config, args: &ArgMatches) -> Result<(), an
      Ok(())
  }
  
@@ -1314,11 +2189,17 @@ index 611919a6..d9d81045 100644
 -    let url = config.get_host_url(server)?;
 -    let nick_or_host = config.server_nick_or_host(server)?;
 -    let new_fing = spacetime_server_fingerprint(&url)
+-        .await
+-        .context("Error fetching server fingerprint")?;
+-    if let Some(saved_fing) = config.server_fingerprint(server)? {
 +async fn update_server_fingerprint(
 +    config: &mut Config,
 +    server: Option<&str>,
-+    cert_path: Option<&Path>,
 +    protocol: Option<&str>,
++    trust_server_cert_path: Option<&Path>,
++    client_cert_path: Option<&Path>,
++    client_key_path: Option<&Path>,
++    trust_system: bool,
 +) -> Result<bool, anyhow::Error> {
 +    let (host, proto, nick_or_host) = match server {
 +        Some(s) => {
@@ -1346,10 +2227,17 @@ index 611919a6..d9d81045 100644
 +        }
 +    };
 +    let url = format!("{}://{}", proto, host);
-+    let new_fing = spacetime_server_fingerprint(&url, cert_path)
-         .await
-         .context("Error fetching server fingerprint")?;
--    if let Some(saved_fing) = config.server_fingerprint(server)? {
++    let new_fing = //map_request_error!(
++        spacetime_server_fingerprint(
++            &url,
++            trust_server_cert_path,
++            client_cert_path,
++            client_key_path,
++            trust_system,
++        ).await
++        .context("fetching server fingerprint")
++//        , url, client_cert_path, client_key_path)
++        ?;
 +    if let Some(saved_fing) = config.server_fingerprint(Some(&host), Some(&proto))? {
          if saved_fing == new_fing {
              println!("Fingerprint is unchanged for server {}:\n{}", nick_or_host, saved_fing);
@@ -1367,7 +2255,7 @@ index 611919a6..d9d81045 100644
              Ok(true)
          }
      } else {
-@@ -266,9 +302,7 @@ async fn update_server_fingerprint(config: &mut Config, server: Option<&str>) ->
+@@ -266,9 +368,7 @@ async fn update_server_fingerprint(config: &mut Config, server: Option<&str>) ->
              "No saved fingerprint for server {}. New fingerprint:\n{}",
              nick_or_host, new_fing
          );
@@ -1378,31 +2266,84 @@ index 611919a6..d9d81045 100644
          Ok(true)
      }
  }
-@@ -276,8 +310,10 @@ async fn update_server_fingerprint(config: &mut Config, server: Option<&str>) ->
+@@ -276,8 +376,32 @@ async fn update_server_fingerprint(config: &mut Config, server: Option<&str>) ->
  pub async fn exec_fingerprint(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::Error> {
      let server = args.get_one::<String>("server").unwrap().as_str();
      let force = args.get_flag("force");
-+    let cert_path = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
++    // TLS arguments
++    let trust_server_cert_path: Option<&Path> = args.get_one::<PathBuf>("trust-server-cert").map(|p| p.as_path());
++    let client_cert_path: Option<&Path> = args.get_one::<PathBuf>("client-cert").map(|p| p.as_path());
++    let client_key_path: Option<&Path> = args.get_one::<PathBuf>("client-key").map(|p| p.as_path());
++
++    // for clients, default to true unless --no-trust-system-root-store
++    // because this is used to verify the received server cert which can be signed by public CA
++    // thus using system's trust/root store, by default, makes sense.
++    let trust_system = !args.get_flag("no-trust-system-root-store");
  
 -    if update_server_fingerprint(&mut config, Some(server)).await? {
++    let url = config.get_host_url(Some(server))?;
++
 +    let (host, protocol) = host_or_url_to_host_and_protocol(server);
-+    if update_server_fingerprint(&mut config, Some(host), cert_path, protocol).await? {
++    println!("!!! {:#?}\n{:#?}\n{:#?}", host, server, url);
++    //if map_request_error!(
++    if update_server_fingerprint(
++        &mut config,
++        Some(host),
++        protocol,
++        trust_server_cert_path,
++        client_cert_path,
++        client_key_path,
++        trust_system,
++    ).await? {
++        //.map_err(|e| spacetimedb_lib::map_request_error(e, &url, client_cert_path.as_deref(), client_key_path.as_deref()))? {
++     //   ,url, client_cert_path, client_key_path)? { 
          if !y_or_n(force, "Continue?")? {
              anyhow::bail!("Aborted");
          }
-@@ -291,8 +327,10 @@ pub async fn exec_fingerprint(mut config: Config, args: &ArgMatches) -> Result<(
+@@ -288,12 +412,39 @@ pub async fn exec_fingerprint(mut config: Config, args: &ArgMatches) -> Result<(
+     Ok(())
+ }
+ 
++
++
  pub async fn exec_ping(config: Config, args: &ArgMatches) -> Result<(), anyhow::Error> {
      let server = args.get_one::<String>("server").unwrap().as_str();
      let url = config.get_host_url(Some(server))?;
-+    let cert_path = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
- 
+-
 -    let builder = reqwest::Client::new().get(format!("{}/v1/ping", url).as_str());
-+    let client = build_client(cert_path).await?;
+-    let response = builder.send().await?;
++    // TLS arguments
++    let trust_server_cert_path: Option<&Path> = args.get_one::<PathBuf>("trust-server-cert").map(|p| p.as_path());
++    let client_cert_path: Option<&Path> = args.get_one::<PathBuf>("client-cert").map(|p| p.as_path());
++    let client_key_path: Option<&Path> = args.get_one::<PathBuf>("client-key").map(|p| p.as_path());
++
++    // for clients, default to true unless --no-trust-system-root-store
++    // because this is used to verify the received server cert which can be signed by public CA
++    // thus using system's trust/root store, by default, makes sense.
++    let trust_system = !args.get_flag("no-trust-system-root-store");
++
++//    use spacetimedb_lib;
++//    use spacetimedb_lib as u;
++//    let client = spacetimedb_lib::map_request_error2!(
++    let client = map_request_error!(
++        build_client(
++            trust_server_cert_path,
++            client_cert_path,
++            client_key_path,
++            trust_system,
++        ).await//?;
++    //.map_err(|e| spacetimedb_lib::map_request_error(e, &url, client_cert_path.as_deref(), client_key_path.as_deref()))?;
++    //.map_request_error!(
++    ,url, client_cert_path, client_key_path)?;
++    //)?;
 +    let builder = client.get(format!("{}/v1/ping", url).as_str());
-     let response = builder.send().await?;
++    let response = map_request_error!(builder.send().await
++        ,url, client_cert_path, client_key_path)?;
++//        .map_err(|e| spacetimedb_lib::map_request_error(e, &url, client_cert_path.as_deref(), client_key_path.as_deref()))?;
  
      match response.status() {
-@@ -342,6 +380,7 @@ pub async fn exec_edit(mut config: Config, args: &ArgMatches) -> Result<(), anyh
+         reqwest::StatusCode::OK => {
+@@ -342,6 +493,7 @@ pub async fn exec_edit(mut config: Config, args: &ArgMatches) -> Result<(), anyh
          println!("Changing host from {} to {}", old_host, new_host);
      }
      if let (Some(new_proto), Some(old_proto)) = (new_proto, old_proto) {
@@ -1410,18 +2351,36 @@ index 611919a6..d9d81045 100644
          println!("Changing protocol from {} to {}", old_proto, new_proto);
      }
  
-@@ -351,7 +390,8 @@ pub async fn exec_edit(mut config: Config, args: &ArgMatches) -> Result<(), anyh
+@@ -351,7 +503,26 @@ pub async fn exec_edit(mut config: Config, args: &ArgMatches) -> Result<(), anyh
          if no_fingerprint {
              config.delete_server_fingerprint(Some(&new_url))?;
          } else {
 -            update_server_fingerprint(&mut config, Some(&new_url)).await?;
-+            let cert_path = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
-+            update_server_fingerprint(&mut config, Some(&new_url), cert_path, new_proto).await?;
++            // TLS arguments
++            let trust_server_cert_path: Option<&Path> = args.get_one::<PathBuf>("trust-server-cert").map(|p| p.as_path());
++            let client_cert_path: Option<&Path> = args.get_one::<PathBuf>("client-cert").map(|p| p.as_path());
++            let client_key_path: Option<&Path> = args.get_one::<PathBuf>("client-key").map(|p| p.as_path());
++
++            // for clients, default to true unless --no-trust-system-root-store
++            // because this is used to verify the received server cert which can be signed by public CA
++            // thus using system's trust/root store, by default, makes sense.
++            let trust_system = !args.get_flag("no-trust-system-root-store");
++            //map_request_error!(
++            update_server_fingerprint(
++                &mut config,
++                Some(&new_url),
++                new_proto,
++                trust_server_cert_path,
++                client_cert_path,
++                client_key_path,
++                trust_system,
++            ).await?;
++             //   ,new_url, client_cert_path, client_key_path)?;
          }
      }
  
 diff --git a/crates/cli/src/subcommands/sql.rs b/crates/cli/src/subcommands/sql.rs
-index 8e6cac17..f0fe745d 100644
+index 8e6cac174..8b40f3649 100644
 --- a/crates/cli/src/subcommands/sql.rs
 +++ b/crates/cli/src/subcommands/sql.rs
 @@ -1,16 +1,18 @@
@@ -1434,7 +2393,7 @@ index 8e6cac17..f0fe745d 100644
  use crate::common_args;
  use crate::config::Config;
 -use crate::util::{database_identity, get_auth_header, ResponseExt, UNSTABLE_WARNING};
-+use crate::util::{database_identity, get_auth_header, ResponseExt, UNSTABLE_WARNING, build_client};
++use crate::util::{self, database_identity, get_auth_header, ResponseExt, UNSTABLE_WARNING, map_request_error};
  use anyhow::Context;
  use clap::{Arg, ArgAction, ArgMatches};
  use reqwest::RequestBuilder;
@@ -1444,95 +2403,221 @@ index 8e6cac17..f0fe745d 100644
  
  pub fn cli() -> clap::Command {
      clap::Command::new("sql")
-@@ -37,19 +39,23 @@ pub fn cli() -> clap::Command {
+@@ -37,20 +39,60 @@ pub fn cli() -> clap::Command {
          .arg(common_args::anonymous())
          .arg(common_args::server().help("The nickname, host name or URL of the server hosting the database"))
          .arg(common_args::yes())
-+        .arg(common_args::cert())
++        //.arg(common_args::cert())
++        .arg(common_args::trust_server_cert())
++        .arg(common_args::client_cert())
++        .arg(common_args::client_key())
++        .arg(common_args::trust_system_root_store())
++        .arg(common_args::no_trust_system_root_store())
  }
  
 -pub(crate) async fn parse_req(mut config: Config, args: &ArgMatches) -> Result<Connection, anyhow::Error> {
-+pub(crate) async fn parse_req(mut config: Config, args: &ArgMatches, cert_path: Option<&Path>) -> Result<Connection, anyhow::Error> {
++pub(crate) async fn parse_req(
++    mut config: Config,
++    args: &ArgMatches,
++    trust_server_cert_path: Option<&Path>,
++    client_cert_path: Option<&Path>,
++    client_key_path: Option<&Path>,
++    trust_system: bool,
++    ) -> Result<Connection, anyhow::Error> {
      let server = args.get_one::<String>("server").map(|s| s.as_ref());
      let force = args.get_flag("force");
      let database_name_or_identity = args.get_one::<String>("database").unwrap();
      let anon_identity = args.get_flag("anon_identity");
  
-+    let client = build_client(cert_path).await?;
-+
-     Ok(Connection {
-         host: config.get_host_url(server)?,
-         auth_header: get_auth_header(&mut config, anon_identity, server, !force).await?,
+-    Ok(Connection {
+-        host: config.get_host_url(server)?,
+-        auth_header: get_auth_header(&mut config, anon_identity, server, !force).await?,
 -        database_identity: database_identity(&config, database_name_or_identity, server).await?,
-+        database_identity: database_identity(&config, database_name_or_identity, server, &client).await?,
++    let host=config.get_host_url(server)?;
++    let client = map_request_error!(
++        util::build_client(
++            trust_server_cert_path,
++            client_cert_path,
++            client_key_path,
++            trust_system,
++        ).await
++        , host, client_cert_path, client_key_path)?;
++    //    ?;
++
++//    let con=
++    Ok(
++    Connection {
++        host: host.clone(), 
++        auth_header: 
++            map_request_error!(
++                get_auth_header(&mut config, anon_identity, server, !force).await
++                , host, client_cert_path, client_key_path)
++                ?,
++        database_identity: 
++            map_request_error!(
++                database_identity(&config, database_name_or_identity, server, &client).await
++                , host, client_cert_path, client_key_path)
++                ?,
          database: database_name_or_identity.to_string(),
-+        cert_path: cert_path.map(PathBuf::from),
++        trust_server_cert_path: trust_server_cert_path.map(PathBuf::from),
++        client_cert_path: client_cert_path.map(PathBuf::from),
++        client_key_path: client_key_path.map(PathBuf::from),
++        trust_system,
      })
++//        )?
++//    Ok(con)
  }
  
-@@ -171,15 +177,16 @@ fn stmt_result_to_table(stmt_result: &SqlStmtResult) -> anyhow::Result<(StmtStat
+ struct StmtResult {
+@@ -171,15 +213,29 @@ fn stmt_result_to_table(stmt_result: &SqlStmtResult) -> anyhow::Result<(StmtStat
  
  pub async fn exec(config: Config, args: &ArgMatches) -> Result<(), anyhow::Error> {
      eprintln!("{}\n", UNSTABLE_WARNING);
-+    let cert_path = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
++    // TLS arguments
++    let trust_server_cert_path: Option<&Path> = args.get_one::<PathBuf>("trust-server-cert").map(|p| p.as_path());
++    let client_cert_path: Option<&Path> = args.get_one::<PathBuf>("client-cert").map(|p| p.as_path());
++    let client_key_path: Option<&Path> = args.get_one::<PathBuf>("client-key").map(|p| p.as_path());
++
++    // for clients, default to true unless --no-trust-system-root-store
++    // because this is used to verify the received server cert which can be signed by public CA
++    // thus using system's trust/root store, by default, makes sense.
++    let trust_system = !args.get_flag("no-trust-system-root-store");
++
++    let con = parse_req(config, args,
++        trust_server_cert_path,
++        client_cert_path,
++        client_key_path,
++        trust_system,
++    ).await?;
++
      let interactive = args.get_one::<bool>("interactive").unwrap_or(&false);
      if *interactive {
 -        let con = parse_req(config, args).await?;
-+        let con = parse_req(config, args, cert_path).await?;
- 
+-
          crate::repl::exec(con).await?;
      } else {
          let query = args.get_one::<String>("query").unwrap();
  
 -        let con = parse_req(config, args).await?;
-+        let con = parse_req(config, args, cert_path).await?;
          let api = ClientApi::new(con);
  
          run_sql(api.sql(), query, false).await?;
 diff --git a/crates/cli/src/subcommands/subscribe.rs b/crates/cli/src/subcommands/subscribe.rs
-index 6eb2039c..f14082b5 100644
+index 6eb2039c7..7eddd08f8 100644
 --- a/crates/cli/src/subcommands/subscribe.rs
 +++ b/crates/cli/src/subcommands/subscribe.rs
-@@ -17,7 +17,7 @@ use tokio_tungstenite::tungstenite::Message as WsMessage;
- use crate::api::ClientApi;
- use crate::common_args;
+@@ -19,6 +19,7 @@ use crate::common_args;
  use crate::sql::parse_req;
--use crate::util::UNSTABLE_WARNING;
-+use crate::util::{self, UNSTABLE_WARNING};
+ use crate::util::UNSTABLE_WARNING;
  use crate::Config;
++use std::path::{Path, PathBuf};
  
  pub fn cli() -> clap::Command {
-@@ -66,6 +66,7 @@ pub fn cli() -> clap::Command {
+     clap::Command::new("subscribe")
+@@ -66,6 +67,12 @@ pub fn cli() -> clap::Command {
                  .action(ArgAction::SetTrue)
                  .help("Print the initial update for the queries."),
          )
-+        .arg(common_args::cert())
++        //.arg(common_args::cert())
++        .arg(common_args::trust_server_cert())
++        .arg(common_args::client_cert())
++        .arg(common_args::client_key())
++        .arg(common_args::trust_system_root_store())
++        .arg(common_args::no_trust_system_root_store())
          .arg(common_args::anonymous())
          .arg(common_args::yes())
          .arg(common_args::server().help("The nickname, host name or URL of the server hosting the database"))
-@@ -132,7 +133,8 @@ pub async fn exec(config: Config, args: &ArgMatches) -> Result<(), anyhow::Error
+@@ -132,7 +139,22 @@ pub async fn exec(config: Config, args: &ArgMatches) -> Result<(), anyhow::Error
      let timeout = args.get_one::<u32>("timeout").copied();
      let print_initial_update = args.get_flag("print_initial_update");
  
 -    let conn = parse_req(config, args).await?;
-+    let cert_path = args.get_one::<std::path::PathBuf>("cert").map(|p| p.as_path());
-+    let conn = parse_req(config, args, cert_path).await?;
++    // TLS arguments
++    let trust_server_cert_path: Option<&Path> = args.get_one::<PathBuf>("trust-server-cert").map(|p| p.as_path());
++    let client_cert_path: Option<&Path> = args.get_one::<PathBuf>("client-cert").map(|p| p.as_path());
++    let client_key_path: Option<&Path> = args.get_one::<PathBuf>("client-key").map(|p| p.as_path());
++
++    // for clients, default to true unless --no-trust-system-root-store
++    // because this is used to verify the received server cert which can be signed by public CA
++    // thus using system's trust/root store, by default, makes sense.
++    let trust_system = !args.get_flag("no-trust-system-root-store");
++
++    let conn = parse_req(config, args,
++        trust_server_cert_path,
++        client_cert_path,
++        client_key_path,
++        trust_system,
++        ).await?;
      let api = ClientApi::new(conn);
      let module_def = api.module_def().await?;
  
-@@ -158,7 +160,19 @@ pub async fn exec(config: Config, args: &ArgMatches) -> Result<(), anyhow::Error
+@@ -158,7 +180,73 @@ pub async fn exec(config: Config, args: &ArgMatches) -> Result<(), anyhow::Error
      if let Some(auth_header) = api.con.auth_header.to_header() {
          req.headers_mut().insert(header::AUTHORIZATION, auth_header);
      }
 -    let (mut ws, _) = tokio_tungstenite::connect_async(req).await?;
 +
 +    // Configure TLS with cert_path
-+    let connector = {
-+        // Changed: Use native-tls like websocket.rs
-+        let mut builder = native_tls::TlsConnector::builder();
-+        if let Some(cert) = util::load_root_cert(api.con.cert_path.as_deref()).await? {
-+            builder.add_root_certificate(cert);
++    let connector = if req.uri().scheme_str() != Some("wss") {
++        let b:bool=trust_server_cert_path.is_some() || client_cert_path.is_some() || client_key_path.is_some();
++        if b {
++            return Err(anyhow::anyhow!("Using cert(s)/key require using https:// scheme not http://"));
 +        }
++        None
++    } else {
++        let mut builder = native_tls::TlsConnector::builder();
++        
++        // Validate trust store
++        if !trust_system && trust_server_cert_path.is_none() {
++            return Err(anyhow::anyhow!(
++                "--no-trust-system-root-store requires --trust-server-cert"
++            ));
++        }
++        if !trust_system {
++            builder.disable_built_in_roots(true);
++        }
++
++        if let Some(cert_path) = trust_server_cert_path {
++            let cert_data = spacetimedb_lib::read_file_limited(cert_path)
++                .await
++                .context(format!("Failed to read cert file: {}", cert_path.display()))?;
++            let certs = rustls_pemfile::certs(&mut std::io::Cursor::new(cert_data))
++                .collect::<Result<Vec<_>, _>>()
++                .context(format!("Failed to parse trust certificates: {}", cert_path.display()))?;
++            if certs.is_empty() {
++                return Err(anyhow::anyhow!(
++                    "No valid certificates in: {}",
++                    cert_path.display()
++                ));
++            }
++            for cert in certs {
++                //TODO: show me added certs like we do in other places!
++                let native_cert = native_tls::Certificate::from_der(&cert).context(format!(
++                    "Failed to convert cert to native-tls format from {}",
++                    cert_path.display()
++                ))?;
++                builder.add_root_certificate(native_cert);
++            }
++        }
++
++        // Configure mTLS
++        if let Some(cert_path) = client_cert_path {
++            let key_path = client_key_path.ok_or_else(|| {
++                anyhow::anyhow!("--client-key is required with --client-cert")
++            })?;
++            let cert_data = spacetimedb_lib::read_file_limited(cert_path)
++                .await
++                .context(format!("Failed to read client cert: {}", cert_path.display()))?;
++            let key_data = spacetimedb_lib::read_file_limited(key_path)
++                .await
++                .context(format!("Failed to read client key: {}", key_path.display()))?;
++            let identity = native_tls::Identity::from_pkcs8(&cert_data, &key_data).context(format!(
++                "Failed to parse client cert/key: {}",
++                cert_path.display()
++            ))?;
++            builder.identity(identity);
++        }
++
 +        let tls_connector = builder.build().context("Failed to build TLS connector")?;
 +        Some(tokio_tungstenite::Connector::NativeTls(tls_connector))
 +    };
@@ -1542,18 +2627,25 @@ index 6eb2039c..f14082b5 100644
      let task = async {
          subscribe(&mut ws, queries.cloned().map(Into::into).collect()).await?;
 diff --git a/crates/cli/src/util.rs b/crates/cli/src/util.rs
-index 20e0591c..6181206d 100644
+index 20e0591ca..e1cfb1926 100644
 --- a/crates/cli/src/util.rs
 +++ b/crates/cli/src/util.rs
-@@ -9,6 +9,7 @@ use std::path::Path;
+@@ -1,3 +1,4 @@
++use anyhow::anyhow;
+ use anyhow::Context;
+ use base64::{engine::general_purpose::STANDARD_NO_PAD as BASE_64_STD_NO_PAD, Engine as _};
+ use reqwest::{RequestBuilder, Url};
+@@ -9,6 +10,9 @@ use std::path::Path;
  
  use crate::config::Config;
  use crate::login::{spacetimedb_login_force, DEFAULT_AUTH_HOST};
 +pub use spacetimedb_lib::load_root_cert;
++pub use spacetimedb_lib::{read_file_limited, TrustCertError, ClientCertError, ClientKeyError};
++pub use spacetimedb_lib::map_request_error;
  
  pub const UNSTABLE_WARNING: &str = "WARNING: This command is UNSTABLE and subject to breaking changes.";
  
-@@ -17,11 +18,12 @@ pub async fn database_identity(
+@@ -17,11 +21,12 @@ pub async fn database_identity(
      config: &Config,
      name_or_identity: &str,
      server: Option<&str>,
@@ -1567,32 +2659,151 @@ index 20e0591c..6181206d 100644
          .await?
          .with_context(|| format!("the dns resolution of `{name_or_identity}` failed."))
  }
-@@ -106,13 +108,37 @@ impl ResponseExt for reqwest::Response {
+@@ -106,13 +111,156 @@ impl ResponseExt for reqwest::Response {
      }
  }
  
 +
-+pub async fn configure_tls(cert_path: Option<&Path>) -> anyhow::Result<reqwest::ClientBuilder> {
-+    let mut client_builder = reqwest::Client::builder();
-+    if let Some(cert) = load_root_cert(cert_path).await? {
-+        let path:String=cert_path.map_or("<unexpected empty path>".to_string(), |p| p.display().to_string());
-+        let reqwest_cert = reqwest::Certificate::from_der(&cert.to_der()
-+            .context(format!("Failed to convert certificate to DER for: {}", path))?)
-+            .context(format!("Invalid certificate: {}", path))?;
-+        client_builder = client_builder.add_root_certificate(reqwest_cert);
++//pub async fn configure_tls(cert_path: Option<&Path>) -> anyhow::Result<reqwest::ClientBuilder> {
++//    let mut client_builder = reqwest::Client::builder();
++//    if let Some(cert) = load_root_cert(cert_path).await? {
++//        let path:String=cert_path.map_or("<unexpected empty path>".to_string(), |p| p.display().to_string());
++//        let reqwest_cert = reqwest::Certificate::from_der(&cert.to_der()
++//            .context(format!("Failed to convert certificate to DER for: {}", path))?)
++//            .context(format!("Invalid certificate: {}", path))?;
++//        client_builder = client_builder.add_root_certificate(reqwest_cert);
++//    }
++//    Ok(client_builder)
++//}
++pub async fn configure_tls(
++    trust_server_cert_path: Option<&Path>,
++    client_cert_path: Option<&Path>,
++    client_key_path: Option<&Path>,
++    trust_system: bool,
++//    no_trust_system: bool,
++) -> anyhow::Result<reqwest::ClientBuilder> {
++    let mut client_builder = reqwest::Client::builder().use_native_tls();
++
++    client_builder = if trust_system {
++        //TODO: find out if this method is taking /etc/ssl/ system trust store certs or what!
++        client_builder.tls_built_in_root_certs(true)
++    } else {
++        eprintln!("Not trusting system/root cert store.");
++        client_builder.tls_built_in_root_certs(false)
++    };
++//    // Validate trust store options
++//    if no_trust_system && trust_cert_path.is_none() {
++//        //XXX: probably never hit due to clap enforcing this.
++//        return Err(anyhow!("--no-trust-system-root-store requires --trust-server-cert"));
++//    }
++
++    // Load trust certificates
++    if let Some(path) = trust_server_cert_path {
++        let cert_data = read_file_limited(path).await
++            //.context(format!("loading trust cert file: {}", path.display()))
++            .map_err(|e| anyhow::Error::new(TrustCertError::new(path, e)))?;
++        let certs = rustls_pemfile::certs(&mut std::io::Cursor::new(cert_data))
++            .collect::<Result<Vec<_>, _>>()
++            .context(format!("parse trust certificate(s) from file: {}", path.display()))
++            .map_err(|e| anyhow::Error::new(TrustCertError::new(path, e)))?;
++        if certs.is_empty() {
++            return Err(anyhow::anyhow!("No valid trust certificate(s) in file: {}", path.display()));
++        }
++        use x509_parser::prelude::FromDer;
++        use sha2::Digest;
++        for cert in certs {
++//            // Parse and log cert details
++//            if let Ok((_, parsed)) = x509_parser::prelude::X509Certificate::from_der(cert.as_ref()) {
++//                let subject = parsed.subject().to_string();
++//                let issuer = parsed.issuer().to_string();
++//                let not_after = parsed.validity().not_after.to_string();
++//                let serial = parsed.serial.to_string();
++//                let fingerprint = format!("{:x}", sha2::Sha256::digest(cert.as_ref()));
++//                log::info!(
++//                    "Client root cert: subject={}, issuer={}, serial={}, expires={}, fingerprint={}",
++//                    subject, issuer, serial, not_after, fingerprint
++//                );
++//            } else {
++//                log::warn!("Failed to parse client root cert from file: '{}'",path.display());
++//            }
++            // Parse and log cert details
++            let (_, parsed) = x509_parser::prelude::X509Certificate::from_der(cert.as_ref())
++                .context(format!("parse a trust cert from file: {}", path.display()))?;
++            let subject = parsed.subject().to_string();
++            let issuer = parsed.issuer().to_string();
++            let not_after = parsed.validity().not_after.to_string();
++            let serial = parsed.serial.to_string();
++            let fingerprint = format!("{:x}", sha2::Sha256::digest(cert.as_ref()));
++            //log::info!(
++            eprintln!(
++                "Adding trusted root cert(for server verification): subject={}, issuer={}, serial={}, expires={}, fingerprint={}",
++                subject, issuer, serial, not_after, fingerprint
++            );
++            let reqwest_cert = 
++                reqwest::Certificate::from_der(&cert)
++                //anyhow::anyhow!("foo")
++                .context(format!("convert trusted cert to reqwest format from file: {}", path.display()))
++                .map_err(|e| anyhow::Error::new(TrustCertError::new(path, e)))?;
++            client_builder = client_builder.add_root_certificate(reqwest_cert);
++        }
 +    }
++
++    // Configure client authentication aka mTLS
++    if let Some(cert_path) = client_cert_path {
++        //FIXME: clap ensures this, so if this is failing it's a different reason?:
++        let key_path = client_key_path.ok_or_else(|| anyhow!("--client-key is required with --client-cert"))?;
++        let cert_data = read_file_limited(cert_path).await
++            .map_err(|e| anyhow::Error::new(ClientCertError::new(cert_path,e)))
++            ?;
++        let key_data = read_file_limited(key_path).await
++            .map_err(|e| anyhow::Error::new(ClientKeyError::new(key_path,e)))
++            ?;
++        //let identity = reqwest::Identity::from_pkcs8_pem(&[&cert_data[..], &key_data[..]].concat())
++        let identity = reqwest::Identity::from_pkcs8_pem(&cert_data, &key_data)
++            .context(format!("parse client cert: {}, key: {}", cert_path.display(), key_path.display()))?;
++        client_builder = client_builder.identity(identity);
++    }
++
 +    Ok(client_builder)
 +}
 +
-+pub fn build_client_with_context(builder: reqwest::ClientBuilder, cert_path: Option<&Path>) -> anyhow::Result<reqwest::Client> {
++pub fn build_client_with_context(
++    builder: reqwest::ClientBuilder,
++    trust_server_cert_path: Option<&Path>,
++    client_cert_path: Option<&Path>,
++    client_key_path: Option<&Path>,
++    trust_system: bool,
++    ) -> anyhow::Result<reqwest::Client> {
 +    builder
 +        .build()
-+        .context(format!("Failed to build client with cert {:?}", cert_path))
++        .context(
++            format!("Failed to build client with trusted (server)cert(s) {:?}, with client cert(s): {:?}, with client private key: {:?}, while {} the system/root cert store.",
++            trust_server_cert_path,
++            client_cert_path,
++            client_key_path,
++            if trust_system { "trusting" } else { "NOT trusting" },
++            )
++        )
 +}
 +
-+pub async fn build_client(cert_path: Option<&Path>) -> anyhow::Result<reqwest::Client> {
-+    let builder = configure_tls(cert_path).await?;
-+    build_client_with_context(builder, cert_path)
++pub async fn build_client(
++    trust_server_cert_path: Option<&Path>,
++    client_cert_path: Option<&Path>,
++    client_key_path: Option<&Path>,
++    trust_system: bool,
++    ) -> anyhow::Result<reqwest::Client> {
++    let builder = configure_tls(
++        trust_server_cert_path,
++        client_cert_path,
++        client_key_path,
++        trust_system,
++        ).await.context("build client")?;
++    build_client_with_context(builder,
++        trust_server_cert_path,
++        client_cert_path,
++        client_key_path,
++        trust_system,
++    )
 +}
 +
  /// Converts a name to a database identity.
@@ -1606,59 +2817,141 @@ index 20e0591c..6181206d 100644
      let url = format!("{}/v1/database/{}/identity", config.get_host_url(server)?, domain);
      let Some(res) = client.get(url).send().await?.found() else {
          return Ok(None);
-@@ -123,8 +149,15 @@ pub async fn spacetime_dns(
+@@ -123,9 +271,47 @@ pub async fn spacetime_dns(
          .context("identity endpoint did not return an identity")
  }
  
 -pub async fn spacetime_server_fingerprint(url: &str) -> anyhow::Result<String> {
 -    let builder = reqwest::Client::new().get(format!("{}/v1/identity/public-key", url).as_str());
-+pub async fn spacetime_server_fingerprint(url: &str, cert_path: Option<&Path>) -> anyhow::Result<String> {
-+    if let Some(_path) = cert_path {
+-    let res = builder.send().await?.error_for_status()?;
++pub async fn spacetime_server_fingerprint(
++    url: &String,
++    trust_server_cert_path: Option<&Path>,
++    client_cert_path: Option<&Path>,
++    client_key_path: Option<&Path>,
++    trust_system: bool,
++    ) -> anyhow::Result<String> {
++    if let Some(_path) = trust_server_cert_path {
 +        if !url.starts_with("https") {
 +            eprintln!("WARNING: Non-https url '{url}' but --cert was specified.");
 +        }
 +    }
-+    let builder = configure_tls(cert_path).await?;
-+    let client = builder.build().map_err(|e| anyhow::anyhow!("Failed to build client: {}", e))?;
++
++//    //doneTODO: collapse these 2 into build_client from above.
++//    let builder = configure_tls(
++//        trust_server_cert_path,
++//        client_cert_path,
++//        client_key_path,
++//        trust_system,
++//        ).await.context("attempt server fingerprint")?;
++//    let client = builder.build().map_err(|e| anyhow::anyhow!("Failed to build client: {}", e))?;
++
++    let client = map_request_error!(
++        build_client(
++            trust_server_cert_path,
++            client_cert_path,
++            client_key_path,
++            trust_system,
++        ).await.context("attempt server fingerprint")
++        , url, client_cert_path, client_key_path)
++        ?;
++
++
++    // A request 'builder' it seems:
 +    let builder = client.get(format!("{}/v1/identity/public-key", url).as_str());
-     let res = builder.send().await?.error_for_status()?;
++    let res = map_request_error!(
++        builder.send().await
++        //?
++        , url, client_cert_path, client_key_path)?
++        .error_for_status()
++        ?;
      let fingerprint = res.text().await?;
      Ok(fingerprint)
-@@ -314,9 +347,9 @@ pub async fn get_login_token_or_log_in(
+ }
+@@ -314,9 +500,21 @@ pub async fn get_login_token_or_log_in(
  
      if full_login {
          let host = Url::parse(DEFAULT_AUTH_HOST)?;
 -        spacetimedb_login_force(config, &host, false).await
-+        spacetimedb_login_force(config, &host, false, None/*TODO*/).await
++        spacetimedb_login_force(config, &host, false,
++            /*TODO*/
++            None,
++            None,
++            None,
++            false,
++            ).await
      } else {
          let host = Url::parse(&config.get_host_url(target_server)?)?;
 -        spacetimedb_login_force(config, &host, true).await
-+        spacetimedb_login_force(config, &host, true, None/*TODO*/).await
++        spacetimedb_login_force(config, &host, true,
++            /*TODO*/
++            None,
++            None,
++            None,
++            false,
++            ).await
      }
  }
 diff --git a/crates/lib/Cargo.toml b/crates/lib/Cargo.toml
-index 417af799..01c26eb2 100644
+index 1057d8fb8..52831daac 100644
 --- a/crates/lib/Cargo.toml
 +++ b/crates/lib/Cargo.toml
-@@ -42,6 +42,9 @@ serde = { workspace = true, optional = true }
- thiserror.workspace = true
+@@ -43,6 +43,18 @@ thiserror.workspace = true
  blake3.workspace = true
  enum-map = { workspace = true, optional = true }
-+tokio.workspace = true
-+native-tls = "0.2"
-+clap.workspace = true
  
++#XXX: can't bring openssl or mio into this lib due to "publish" failing to compile them in wasm!
++#eg. hyper,reqwest,native-tls,tokio all bring either of them.
++[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
++#tokio = { version= "1.44", default-features = false, features = ["rt", "sync", "time"] }
++tokio.workspace = true #this "full" tokio causes 'mio' to fail to wasm compile see: https://github.com/tokio-rs/mio/pull/1856
++#native-tls = "0.2"
++native-tls.workspace=true
++hyper.workspace=true
++reqwest.workspace=true
++openssl.workspace=true
++clap.workspace = true
++
  # For the 'proptest' feature.
  proptest = { workspace = true, optional = true }
+ proptest-derive = { workspace = true, optional = true }
 diff --git a/crates/lib/src/lib.rs b/crates/lib/src/lib.rs
-index f1963db6..583ddbee 100644
+index d25e317ea..b9fb82b8f 100644
 --- a/crates/lib/src/lib.rs
 +++ b/crates/lib/src/lib.rs
-@@ -384,3 +384,52 @@ pub fn resolved_type_via_v9<T: SpacetimeType>() -> AlgebraicType {
+@@ -6,6 +6,25 @@ use spacetimedb_sats::{impl_serialize, WithTypespace};
+ use std::any::TypeId;
+ use std::collections::{btree_map, BTreeMap};
+ 
++
++macro_rules! non_wasm {
++    ($($item:item)*) => {
++        $(
++            #[cfg(not(target_arch = "wasm32"))]
++            $item
++        )*
++    };
++}
++
++
++//XXX: we avoid anything 'mio' or 'openssl' which will fail to compile in wasm32; this this lib is
++//used on both wasm32 during 'spacetime publish' compilation and non-wasm32 ie. x86_64
++//#[cfg(not(target_arch = "wasm32"))]
++non_wasm! {
++use tokio::io::AsyncReadExt;
++}
++
++
+ pub mod connection_id;
+ pub mod db;
+ mod direct_index_key;
+@@ -386,3 +405,612 @@ pub fn resolved_type_via_v9<T: SpacetimeType>() -> AlgebraicType {
          .resolve_refs()
          .expect("recursive types not supported")
  }
 +
++//#[cfg(not(target_arch = "wasm32"))]
++non_wasm! {
 +pub async fn load_root_cert(cert_path: Option<&std::path::Path>) -> anyhow::Result<Option<native_tls::Certificate>> {
 +    if let Some(path) = cert_path {
 +        // Open file asynchronously
@@ -1697,59 +2990,698 @@ index f1963db6..583ddbee 100644
 +    }
 +}
 +
-+pub fn cert() -> clap::Arg {
-+    clap::Arg::new("cert")
-+        .long("cert")
++//pub fn cert() -> clap::Arg {
++//    clap::Arg::new("cert")
++//        .long("cert")
++//        .value_name("FILE")
++//        .action(clap::ArgAction::Set)
++//        .value_parser(clap::value_parser!(std::path::PathBuf))
++//        .required(false)
++//        .help("Path to the server’s self-signed certificate or CA certificate (PEM format) to trust during this command (ie. as if it were part of your system's cert root store)")
++//}
++
++//for cli clients:
++pub fn trust_server_cert() -> clap::Arg {
++    //TODO: rename this to trust_ca_cert() it's less confusing
++    clap::Arg::new("trust-server-cert")
++        .long("trust-server-cert")
++        .alias("trust-server-certs")
++        .alias("trust-server-cert-bundle")
++        .alias("cert")
++        .alias("certs")
++        .alias("cert-bundle")
++        .alias("root-cert")
++        .alias("root-certs")
++        .alias("root-cert-bundle")
++        .alias("trust-ca-cert")
++        .alias("trust-ca-certs")
++        .alias("trust-ca-cert-bundle")
++        .alias("ca-certs")
++        .alias("ca-cert")
++        .alias("ca-cert-bundle")
 +        .value_name("FILE")
 +        .action(clap::ArgAction::Set)
 +        .value_parser(clap::value_parser!(std::path::PathBuf))
 +        .required(false)
-+        .help("Path to the server’s self-signed certificate or CA certificate (PEM format) to trust during this command (ie. as if it were part of your system's cert root store)")
++//        .requires("ssl")
++        //.help("Path to PEM file containing certificates to trust for the server (e.g., CA or self-signed)")
++        .help("Path to the server’s self-signed certificate or CA certificate (PEM format, can be a bundle ie. appended PEM certs) to trust during this command (ie. as if it were part of your system's cert trust/root store)")
 +}
 +
++//for the cli clients:
++pub fn client_cert() -> clap::Arg {
++    clap::Arg::new("client-cert")
++        .long("client-cert")
++        .value_name("FILE")
++        .action(clap::ArgAction::Set)
++        .value_parser(clap::value_parser!(std::path::PathBuf))
++        .required(false)
++//        .requires("ssl")
++        .help("Path to the client’s certificate (PEM format) for authentication")
++}
++
++//for the cli clients:
++pub fn client_key() -> clap::Arg {
++    clap::Arg::new("client-key")
++        .long("client-key")
++        .value_name("FILE")
++        .action(clap::ArgAction::Set)
++        .value_parser(clap::value_parser!(std::path::PathBuf))
++        .required(false)
++        .requires("client-cert")
++//        .requires("ssl")
++        .help("Path to the client’s private key (PEM format) for authentication")
++}
++
++//for cli clients, this is the default(to trust):
++pub fn trust_system_root_store() -> clap::Arg {
++    clap::Arg::new("trust-system-root-store")
++        .long("trust-system-root-store")
++//        .alias("trust-root-store")
++        .action(clap::ArgAction::SetTrue)
++        .conflicts_with("no-trust-system-root-store")
++//        .requires("ssl")
++        .help("Use system root certificates (default)")
++}
++
++//for cli clients, setting this means only the --trust-server-certs arg is used to verify the
++//target server's cert):
++pub fn no_trust_system_root_store() -> clap::Arg {
++    clap::Arg::new("no-trust-system-root-store")
++        .long("no-trust-system-root-store")
++        .alias("empty-trust-store")
++//        .alias("no-trust-root-store")
++        .action(clap::ArgAction::SetTrue)
++        .conflicts_with("trust-system-root-store")
++        .requires("trust-server-cert")
++//        .requires("ssl")
++        .help("Use empty trust store (requires --trust-server-cert else there'd be 0 certs to verify trust)")
++}
++
++//for the standalone server:
++pub fn client_trust_cert() -> clap::Arg {
++    clap::Arg::new("client-trust-cert")
++        .long("client-trust-cert")
++        .alias("client-cert")
++        .alias("client-certs")
++        .alias("client-ca-cert")
++        .alias("client-root-cert")
++        .alias("client-trust-certs")
++        .alias("client-ca-certs")
++        .alias("client-root-certs")
++        .alias("client-cert-bundle")
++        .alias("client-trust-cert-bundle")
++        .alias("client-ca-cert-bundle")
++        .alias("client-root-cert-bundle")
++        .value_name("FILE")
++        .action(clap::ArgAction::Set)
++        .value_parser(clap::value_parser!(std::path::PathBuf))
++        .requires("ssl")
++        .required(false)
++        .help("Path to PEM file containing certificate(s) to trust for client authentication (e.g., CA or self-signed)")
++}
++
++//for the standalone server:
++pub fn client_trust_system_root_store() -> clap::Arg {
++    clap::Arg::new("client-trust-system-root-store")
++        .long("client-trust-system-root-store")
++        .action(clap::ArgAction::SetTrue)
++        .conflicts_with("client-no-trust-system-root-store")
++        .requires("ssl")
++        .help("Use system root certificates for client authentication (unusual)")
++}
++
++//for the standalone server:
++pub fn client_no_trust_system_root_store() -> clap::Arg {
++    clap::Arg::new("client-no-trust-system-root-store")
++        .long("client-no-trust-system-root-store")
++        .alias("client-empty-trust-store")
++        .action(clap::ArgAction::SetTrue)
++        .conflicts_with("client-trust-system-root-store")
++        .requires("client-trust-cert")
++        .requires("ssl")
++        .help("Use empty trust store for client authentication (default), requires --client-trust-cert to validate client certs somehow.")
++}
++
++///// Asynchronously reads a file with a maximum size limit of 1 MiB.
++//pub async fn read_file_limited(path: &std::path::Path) -> anyhow::Result<Vec<u8>> {
++//    const MAX_SIZE: usize = 1_048_576; // 1 MiB
++//
++//    let file = tokio::fs::File::open(path)
++//        .await
++//        .context(format!("Failed to open file {}", path.display()))?;
++//        //.map_err(|e| anyhow::anyhow!("Failed to open file {}: {}", path.display(), e))?;
++//    let metadata = file
++//        .metadata()
++//        .await
++//        .context(format!("Failed to read metadata for {}", path.display()))?;
++//        //.map_err(|e| anyhow::anyhow!("Failed to read metadata for {}: {}", path.display(), e))?;
++//
++//    if metadata.len() > MAX_SIZE as u64 {
++//        return Err(anyhow::anyhow!(
++//            "File {} exceeds maximum size of {} bytes",
++//            path.display(),
++//            MAX_SIZE
++//        ));
++//    }
++//
++//    let mut reader = tokio::io::BufReader::new(file);
++//    let mut data = Vec::with_capacity(metadata.len() as usize);
++//    reader
++//        .read_to_end(&mut data)
++//        .await
++//        .context(format!("Failed to read(happens after open) file {}", path.display()))?;
++//        //.map_err(|e| anyhow::anyhow!("Failed to read file {}: {}", path.display(), e))?;
++//
++//    Ok(data)
++//}
++/// Asynchronously reads a file with a maximum size limit of 1 MiB.
++/// Files of 1 MiB or larger will fail; files under 1 MiB are allowed.
++/// This should avoid unresponsive system(DOS-ing) until OOM kicks in  if you do /dev/zero as the path.
++//#[cfg(not(target_arch = "wasm32"))]
++pub async fn read_file_limited(path: &std::path::Path) -> anyhow::Result<Vec<u8>> {
++    // if file is >= to this, fails!
++    const MAX_SIZE: u64 = 1_048_576; // 1 MiB
++
++    // it's explicitly opened as read only:
++    let file = tokio::fs::OpenOptions::new()
++        .read(true)
++        .write(false)
++        .open(path)
++    //let file = tokio::fs::File::open(path)//it's read-only by default!
++        .await
++        .context(format!("Failed to open file: {}", path.display()))?;
++
++    // This to avoid the reading/mem alloc for normal eg. non-/dev/zero files:
++    let metadata = file
++        .metadata()
++        .await
++        .context(format!("Failed to read metadata for {}", path.display()))?;
++
++    if metadata.len() >= MAX_SIZE as u64 {
++        return Err(anyhow::anyhow!(
++            "File {} exceeds maximum size of {} bytes",
++            path.display(),
++            MAX_SIZE-1
++        ));
++    }
++
++    let mut reader = tokio::io::BufReader::new(file).take(MAX_SIZE);
++    //allocs 1MiB for any file size, once.
++    //XXX: this is overkill for normal certs which are like 2KiB, or CA cert chains 250KiB+-
++    //if memory's a problem, just Vec::new() here instead.
++    let mut data = Vec::with_capacity(MAX_SIZE as usize);
++
++    reader
++        .read_to_end(&mut data)
++        .await
++        .context(format!("Failed to read(happens after open) file: {}", path.display()))?;
++
++    if reader.limit() == 0 {
++        return Err(anyhow::anyhow!(
++            "Read(already) >= {} bytes from file {}, exceeding maximum accepted size of {} bytes.",
++            MAX_SIZE,
++            path.display(),
++            MAX_SIZE-1
++        ));
++    }
++
++    Ok(data)
++}
++
++
++#[macro_export]
++macro_rules! set_string {
++    ($s:expr, $new:expr) => {
++        $s.replace_range(.., $new);
++    };
++}
++
++pub fn set_string(s: &mut String, new: &str) {
++    s.replace_range(.., new);
++}
++
++#[macro_export]
++macro_rules! new_string {
++    ($binding:ident, $initial:literal, $capacity:expr) => {
++        let mut $binding: String = {
++            const LOCAL: &str = $initial; // Explicit &str
++            let capacity: usize = const {
++                // Compile-time check
++                const INIT_LEN: usize = $initial.len();
++                if $capacity >= INIT_LEN { $capacity } else { INIT_LEN }
++            };
++            let mut s: String = String::with_capacity(capacity);
++            s.push_str(LOCAL);
++            //FIXME Move: Returns a String (24 bytes: ptr, len, capacity), moved to $binding.
++            //--release: LLVM inlines the block, constructing s directly in $binding’s stack slot (zero cost). The move is eliminated—s is built in-place.
++            s
++        };
++    };
++    ($binding:ident, $initial:expr, $capacity:expr) => {
++        let mut $binding: String = {
++            let local: &str = $initial; // Explicit &str
++            let capacity: usize = {
++                // Runtime check
++                let init_len = local.len();
++                if $capacity >= init_len { $capacity } else { init_len }
++            };
++            let mut s: String = String::with_capacity(capacity);
++            s.push_str(local);
++            //FIXME Move: Returns a String (24 bytes: ptr, len, capacity), moved to $binding.
++            //--release: LLVM inlines the block, constructing s directly in $binding’s stack slot (zero cost). The move is eliminated—s is built in-place.
++            s
++        };
++    };
++}
++
++use std::path::Path;
++use std::error::Error;
++
++#[derive(Debug)]
++pub struct ClientCertError {
++    path: String,
++    source: anyhow::Error,
++}
++
++impl ClientCertError {
++    pub fn new(path: &Path, source: anyhow::Error) -> Self {
++        Self {
++            path: path.display().to_string(),
++            source,
++        }
++    }
++}
++
++impl std::fmt::Display for ClientCertError {
++    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        write!(f, "Something failed with client certificate {}", self.path) //: {}", self.path, self.source)
++    }
++}
++
++impl Error for ClientCertError {
++    fn source(&self) -> Option<&(dyn Error + 'static)> {
++        Some(&*self.source)
++    }
++}
++
++#[derive(Debug)]
++pub struct ClientKeyError {
++    path: String,
++    source: anyhow::Error,
++}
++
++impl ClientKeyError {
++    pub fn new(path: &Path, source: anyhow::Error) -> Self {
++        Self {
++            path: path.display().to_string(),
++            source,
++        }
++    }
++}
++
++impl std::fmt::Display for ClientKeyError {
++    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        write!(f, "Something failed with client private key {}", self.path) //: {}", self.path, self.source)
++    }
++}
++
++impl Error for ClientKeyError {
++    fn source(&self) -> Option<&(dyn Error + 'static)> {
++        Some(&*self.source)
++    }
++}
++
++#[derive(Debug)]
++pub struct TrustCertError {
++    path: String,
++    source: anyhow::Error,
++}
++
++impl TrustCertError {
++    pub fn new(path: &Path, source: anyhow::Error) -> Self {
++        Self {
++            path: path.display().to_string(),
++            source,
++        }
++    }
++}
++
++impl std::fmt::Display for TrustCertError {
++    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        write!(f, "Something failed with trust certificate {}", self.path) //: {}", self.path, self.source)
++    }
++}
++
++impl Error for TrustCertError {
++    fn source(&self) -> Option<&(dyn Error + 'static)> {
++        Some(&*self.source)
++    }
++}
++
++/*doneFIXME: find out why I got the following error only once.
++ok it's this https://github.com/seanmonstar/reqwest/issues/1808 and possibly https://github.com/hyperium/hyper/issues/2136  but basically it's because client doesn't expect server to reply because client didn't request(HTTP1) anything first in order to expect a reply, so if both  reply and close  are happening on server then some race happens where mostly closed connection is handled first, even tho the reply itself is already gotten.
++ * https://github.com/seanmonstar/reqwest/issues/2649
++ * https://github.com/hyperium/hyper-util/pull/184
++ *
++$ spacetime server ping slocal --cert ../my/spacetimedb-cert-gen/ca.crt
++WARNING: This command is UNSTABLE and subject to breaking changes.
++
++Adding trusted root cert(for server verification): subject=CN=MyLocalCA, issuer=CN=MyLocalCA, serial=359627719638463223090969970838819027680303337392, expires=Mar 24 13:24:50 2035 +00:00, fingerprint=25bb314ec76db8ab97f225011ec24dd0bca8aff470cb21c812600a8f4ed0cca7
++Error: Failed sending request to https://127.0.0.1:3000: Failed to construct or send the HTTP request, source: Some(
++    hyper_util::client::legacy::Error(
++        Canceled,
++        hyper::Error(
++            Canceled,
++            hyper::Error(
++                Io,
++                Custom {
++                    kind: Other,
++                    error: Error {
++                        code: ErrorCode(
++                            1,
++                        ),
++                        cause: Some(
++                            Ssl(
++                                ErrorStack(
++                                    [
++                                        Error {
++                                            code: 167773276,
++                                            library: "SSL routines",
++                                            function: "ssl3_read_bytes",
++                                            reason: "tlsv13 alert certificate required",
++                                            file: "ssl/record/rec_layer_s3.c",
++                                            line: 908,
++                                            data: "SSL alert number 116",
++                                        },
++                                    ],
++                                ),
++                            ),
++                        ),
++                    },
++                },
++            ),
++        ),
++    ),
++)
++
++
++XXX: and why I get instead this:
++
++$ spacetime server ping slocal --cert ../my/spacetimedb-cert-gen/ca.crt
++WARNING: This command is UNSTABLE and subject to breaking changes.
++
++Adding trusted root cert(for server verification): subject=CN=MyLocalCA, issuer=CN=MyLocalCA, serial=359627719638463223090969970838819027680303337392, expires=Mar 24 13:24:50 2035 +00:00, fingerprint=25bb314ec76db8ab97f225011ec24dd0bca8aff470cb21c812600a8f4ed0cca7
++Error: Failed sending request to https://127.0.0.1:3000: Server closed the connection because you did NOT provide the args --client-cert and --client-key for mutual TLS (mTLS), source: Some(
++    hyper_util::client::legacy::Error(
++        SendRequest,
++        hyper::Error(
++            ChannelClosed,
++        ),
++    ),
++)
++
++*/
++//#[cfg(not(target_arch = "wasm32"))]
++pub fn map_request_error<E: Into<anyhow::Error>>(
++    e: E,
++    url: &String,
++    client_cert_path: Option<&Path>,
++    client_key_path: Option<&Path>,
++) -> anyhow::Error {
++    let e = e.into();
++    //let mut last_message:String = "Unknown error occurred".to_string();
++    new_string!(last_message, "An error occurred that wasn't mapped into something better by map_request_error.", 512);
++//    fn example<E: std::fmt::Display>(e: &E) -> String {
++//        format!("err: {}, Error type: {}", e, std::any::type_name::<E>())
++//    }
++//    set_string!(last_message, &format!("{}", example(&e)));
++    let mut max_specificity = 0; // 0: Unknown, 1: reqwest, 2: ChannelClosed, 3: tlsv13 alert, 4: file
++
++    /*Normally Similar: For most types, &e and e.as_ref() are equivalent, as AsRef often just returns a reference to the type. For example, for String, e.as_ref() returns &String, same as &e.
++      Your Case: For anyhow::Error, e.as_ref() is special:
++
++      &e gives &anyhow::Error, a reference to the struct.
++      e.as_ref() calls anyhow::Error’s AsRef implementation, returning &dyn std::error::Error + Send + Sync + 'static. This dynamic trait object satisfies the bounds needed for downcast_ref and source, avoiding E0277.
++      */
++    // Summary: e.as_ref() in map_request_error converts e: anyhow::Error to &dyn std::error::Error, enabling safe chain traversal.
++    // Traverse the error chain using e.as_ref()
++    let mut current: Option<&dyn std::error::Error> = Some(e.as_ref());
++    while let Some(err) = current {
++        // Check hyper::Error
++        if let Some(hyper_err) = err.downcast_ref::<hyper::Error>() {
++            if hyper_err.is_closed() {
++                let msg = (
++                    if client_cert_path.is_none() || client_key_path.is_none() {
++                        "Server closed the connection likely because you did NOT provide the args --client-cert and --client-key for mutual TLS (mTLS) and server requires it, also you need the hyper-util patch which affects hyper/reqwest and makes them not hide connection errors behind ChannelClosed from here: https://github.com/hyperium/hyper-util/pull/184 which means that's why you're seeing this generic error."
++                    } else {
++                        "Connection channel closed unexpectedly (server may be down or misconfigured), you should have this PR https://github.com/hyperium/hyper-util/pull/184 applied to avoid hiding the real reason behind ChannelClosed error(s)."
++                    },
++                    2,
++                );
++                if msg.1 > max_specificity {
++                    //last_message = msg.0.to_string();
++                    //last_message. = msg.0.to_string();
++                    set_string!(last_message, msg.0);
++                    max_specificity = msg.1;
++                }
++            }
++            if let Some(io_err) = hyper_err.source() {
++                if let Some(ssl_err) = io_err.downcast_ref::<std::io::Error>() {
++                    if let Some(openssl_err) = ssl_err.get_ref() {
++                        if let Some(ssl_error) = openssl_err.downcast_ref::<openssl::ssl::Error>() {
++                            if ssl_error
++                                .ssl_error()
++                                    .map(|stack: &openssl::error::ErrorStack| {
++                                        stack
++                                            .errors()
++                                            .iter()
++                                            .any(|e| e.reason() == Some("tlsv13 alert certificate required"))
++                                    })
++                            .unwrap_or(false)
++                            {
++                                let msg = (
++                                    if client_cert_path.is_none() || client_key_path.is_none() {
++                                        "You didn't pass the required client certificate(yours) for mTLS, use --client-cert and --client-key 🔒"
++                                    } else {
++                                        "TLS handshake failed: server requires a valid client certificate(yours) for mTLS 🔒"
++                                    },
++                                    3,
++                                );
++                                if msg.1 > max_specificity {
++                                    //last_message = msg.0;
++                                    set_string!(last_message, msg.0);
++                                    max_specificity = msg.1;
++                                }
++                            }
++                        }
++                    }
++                }
++            }
++        }
++        // Check reqwest::Error
++        else if let Some(reqwest_err) = err.downcast_ref::<reqwest::Error>() {
++            let msg = if reqwest_err.is_connect() {
++                Some(("Failed to connect to the server (connection refused or network unreachable)", 1))
++            } else if reqwest_err.is_timeout() {
++                Some(("Request timed out while trying to reach the server", 1))
++            } else if reqwest_err.is_request() {
++                Some(("Failed to construct or send the HTTP request", 1))
++            } else if reqwest_err.is_body() {
++                Some(("Error in the request body", 1))
++            } else if reqwest_err.is_decode() {
++                Some(("Failed to decode the response", 1))
++            } else {
++                None
++            };
++            if let Some((msg, spec)) = msg {
++                if spec > max_specificity {
++                    //last_message = msg;
++                    set_string!(last_message, msg);
++                    max_specificity = spec;
++                }
++            }
++        }
++        // Check custom file errors
++        else if let Some(trust_err) = err.downcast_ref::<TrustCertError>() {
++            let msg = (format!("problem with trust certificate file {}", trust_err.path), 4);
++            if msg.1 > max_specificity {
++                set_string!(last_message, &msg.0);
++                max_specificity = msg.1;
++            }
++        }
++        else if let Some(cert_err) = err.downcast_ref::<ClientCertError>() {
++            let msg = (format!("problem with client certificate file {}", cert_err.path), 4);
++            if msg.1 > max_specificity {
++                set_string!(last_message, &msg.0);
++                max_specificity = msg.1;
++            }
++        }
++        else if let Some(key_err) = err.downcast_ref::<ClientKeyError>() {
++            let msg = (format!("problem with client private key file {}", key_err.path), 4);
++            if msg.1 > max_specificity {
++                set_string!(last_message, &msg.0);
++                max_specificity = msg.1;
++            }
++        }
++
++        current = err.source();
++    }
++    //TODO: see if specificity is needed, and likely get rid of it
++
++    let source_str = match e.source() {
++        Some(err) => format!("{:#?}", err),
++        None => "<no error cause/source>".to_string(),
++    };
++    let message=format!(
++        "(as follows on next lines)\n------- map_request_error ------\nFailed sending request to {}\nerr   : {}\nsource: {}\n----- end -----",
++        url,
++        last_message,
++        source_str,
++    );
++    // Chain the original error with the new message
++    e.context(message)
++}
++
++#[macro_export]
++macro_rules! map_request_error {
++    ($result:expr, $url:expr, $client_cert_path:expr, $client_key_path:expr) => {
++        //using self:: here requires only an use spacetimedb_lib::map_request_error; at call site.
++        //and note how macro and fn name are same.
++        $result.map_err(|e| self::map_request_error(e,
++                &$url,
++                $client_cert_path.as_deref(),
++                $client_key_path.as_deref()
++                ))
++    };
++}
++
++
++} // end of non_wasm! macro call
 diff --git a/crates/sdk/Cargo.toml b/crates/sdk/Cargo.toml
-index 9daa2a98..2d95cbbe 100644
+index 9daa2a983..89ba431df 100644
 --- a/crates/sdk/Cargo.toml
 +++ b/crates/sdk/Cargo.toml
-@@ -29,6 +29,10 @@ prometheus.workspace = true
+@@ -29,6 +29,15 @@ prometheus.workspace = true
  rand.workspace = true
  tokio.workspace = true
  tokio-tungstenite.workspace = true
-+rustls = "0.23"
-+rustls-pemfile = "2.2.0"
-+native-tls = "0.2"  # Explicitly add for Connector::NativeTls
-+anyhow="1.0"
++#rustls = "0.23"
++rustls.workspace = true
++#rustls-pemfile = "2.2.0"
++rustls-pemfile.workspace = true
++#native-tls = "0.2"  # Explicitly add for Connector::NativeTls
++native-tls.workspace = true
++#anyhow="1.0"
++anyhow.workspace=true
++clap.workspace=true
  
  [dev-dependencies]
  # for quickstart-chat and cursive-chat examples
 diff --git a/crates/sdk/examples/quickstart-chat/main.rs b/crates/sdk/examples/quickstart-chat/main.rs
-index e04ff9cb..25cc5d5b 100644
+index e04ff9cb3..041ae1650 100644
 --- a/crates/sdk/examples/quickstart-chat/main.rs
 +++ b/crates/sdk/examples/quickstart-chat/main.rs
-@@ -5,11 +5,20 @@ use module_bindings::*;
+@@ -5,11 +5,86 @@ use module_bindings::*;
  
  use spacetimedb_sdk::{credentials, DbContext, Error, Event, Identity, Status, Table, TableWithPrimaryKey};
  
++use clap::{Arg, Command};
 +use std::path::PathBuf;
 +
 +
  // ## Define the main function
  
  fn main() {
--    // Connect to the database
++     // Parse command-line arguments with clap
++    let matches = Command::new("quickstart-chat")
++        .arg(
++            Arg::new("trust-server-cert")
++                .long("trust-server-cert")
++                .alias("cert")
++                .value_name("FILE")
++                .value_parser(clap::value_parser!(PathBuf))
++                .help("Path to PEM file containing certificates to trust for the server"),
++        )
++        .arg(
++            Arg::new("client-cert")
++                .long("client-cert")
++                .value_name("FILE")
++                .value_parser(clap::value_parser!(PathBuf))
++                .help("Path to the client’s certificate (PEM) for mTLS"),
++        )
++        .arg(
++            Arg::new("client-key")
++                .long("client-key")
++                .value_name("FILE")
++                .value_parser(clap::value_parser!(PathBuf))
++                .requires("client-cert")
++                .help("Path to the client’s private key (PEM) for mTLS"),
++        )
++        .arg(
++            Arg::new("trust-system-certs")
++                .long("trust-system-certs")
++                .action(clap::ArgAction::SetTrue)
++                .conflicts_with("no-trust-system-certs")
++                .help("Use system root certificates (default)"),
++        )
++        .arg(
++            Arg::new("no-trust-system-certs")
++                .long("no-trust-system-certs")
++                .alias("empty-trust-store")
++                .action(clap::ArgAction::SetTrue)
++                .conflicts_with("trust-system-certs")
++                .help("Use empty trust store (requires --trust-server-cert)"),
++        )
++        .get_matches();
++    //FIXME: check args./aliases
++
++    //FIXME: see if this 'if' makes sense:
++    // Validate no-trust-system-certs
++    if matches.get_flag("no-trust-system-certs") && !matches.contains_id("trust-server-cert") {
++        eprintln!("--no-trust-system-certs requires --trust-server-cert");
++        std::process::exit(1);
++    }
++
++//    // ### Parse command-line arguments for --cert into a PathBuf
++//    let args: Vec<String> = std::env::args().collect();
++//    let cert_path: Option<PathBuf> = args.iter()
++//        .position(|arg| arg == "--cert")
++//        .map(|i| args.get(i + 1).expect("Missing certificate path after --cert"))
++//        .map(|s| PathBuf::from(s));
++//    // Connect to the database with optional cert
++//    let ctx = connect_to_db(cert_path);
++
++    // Extract arguments
++    let trust_server_cert = matches.get_one::<PathBuf>("trust-server-cert").cloned();
++    let client_cert = matches.get_one::<PathBuf>("client-cert").cloned();
++    let client_key = matches.get_one::<PathBuf>("client-key").cloned();
++    let trust_system_certs = if matches.get_flag("no-trust-system-certs") {
++        Some(false)
++    } else if matches.get_flag("trust-system-certs") {
++        Some(true)
++    } else {
++        None // None here but deeper this means 'true', in db_connection.rs
++    };
++
+     // Connect to the database
 -    let ctx = connect_to_db();
-+    // ### Parse command-line arguments for --cert into a PathBuf
-+    let args: Vec<String> = std::env::args().collect();
-+    let cert_path: Option<PathBuf> = args.iter()
-+        .position(|arg| arg == "--cert")
-+        .map(|i| args.get(i + 1).expect("Missing certificate path after --cert"))
-+        .map(|s| PathBuf::from(s));
-+    // Connect to the database with optional cert
-+    let ctx = connect_to_db(cert_path);
++    let ctx = connect_to_db(trust_server_cert, client_cert, client_key, trust_system_certs);
  
      // Register callbacks to run in response to database events.
      register_callbacks(&ctx);
-@@ -26,14 +35,19 @@ fn main() {
+@@ -22,18 +97,36 @@ fn main() {
+ 
+     // Handle CLI input
+     user_input_loop(&ctx);
++    //gracefully exit, if Ctrl+D was pressed (Ctrl+Z on Windows)
++    let _=ctx.disconnect();
++    const TIMEOUT:u64=3;
++    let duration = std::time::Duration::from_secs(TIMEOUT);
++    std::thread::sleep(duration);
++    //not reached:
++    println!("Failed to disconnect from the database! Waited {} seconds.", TIMEOUT);
+ }
  
  // ## Connect to the database
  
@@ -1763,16 +3695,22 @@ index e04ff9cb..25cc5d5b 100644
  
  /// Load credentials from a file and connect to the database.
 -fn connect_to_db() -> DbConnection {
-+fn connect_to_db(cert_path: Option<PathBuf>) -> DbConnection {
++fn connect_to_db(
++    cert_path: Option<PathBuf>,
++    client_cert: Option<PathBuf>,
++    client_key: Option<PathBuf>,
++    trust_system_certs: Option<impl Into<bool>>
++    ) -> DbConnection {
 +    // ### Construct URI with scheme based on cert presence
-+    let scheme = if cert_path.is_some() { "https" } else { "http" };
++    let expects_https=cert_path.is_some() || client_cert.is_some() || client_key.is_some();
++    let scheme = if expects_https { "https" } else { "http" };
 +    let uri = format!("{}://{}", scheme, HOST_PORT);
 +
 +//    let mut builder=
      DbConnection::builder()
          // Register our `on_connect` callback, which will save our auth token.
          .on_connect(on_connected)
-@@ -48,7 +62,17 @@ fn connect_to_db() -> DbConnection {
+@@ -48,7 +141,23 @@ fn connect_to_db() -> DbConnection {
          // Set the database name we chose when we called `spacetime publish`.
          .with_module_name(DB_NAME)
          // Set the URI of the SpacetimeDB host that's running our database.
@@ -1788,39 +3726,63 @@ index e04ff9cb..25cc5d5b 100644
 +//         .expect("Failed to connect")
 +        // ### Add trusted cert if provided
 +        .with_trusted_cert(cert_path)
++        // Add client identity (TLS)
++        .with_client_cert(client_cert)
++        .with_client_key(client_key)
++        // Configure trust store
++        .with_trust_system_certs(trust_system_certs)
++
          // Finalize configuration and connect!
          .build()
          .expect("Failed to connect")
 diff --git a/crates/sdk/src/db_connection.rs b/crates/sdk/src/db_connection.rs
-index e1e4133e..fbc2dd57 100644
+index e1e4133e3..b3c955a8e 100644
 --- a/crates/sdk/src/db_connection.rs
 +++ b/crates/sdk/src/db_connection.rs
-@@ -748,6 +748,8 @@ pub struct DbConnectionBuilder<M: SpacetimeModule> {
+@@ -44,6 +44,7 @@ use tokio::{
+     runtime::{self, Runtime},
+     sync::Mutex as TokioMutex,
+ };
++use std::path::PathBuf;
+ 
+ pub(crate) type SharedCell<T> = Arc<StdMutex<T>>;
+ 
+@@ -748,6 +749,11 @@ pub struct DbConnectionBuilder<M: SpacetimeModule> {
      on_disconnect: Option<OnDisconnectCallback<M>>,
  
      params: WsParams,
 +
 +    trusted_cert: Option<std::path::PathBuf>,
++    client_cert: Option<std::path::PathBuf>,
++    client_key: Option<std::path::PathBuf>,
++    trust_system_certs: Option<bool>,
  }
  
  /// This process's global connection ID, which will be attacked to all connections it makes.
-@@ -794,6 +796,7 @@ impl<M: SpacetimeModule> DbConnectionBuilder<M> {
+@@ -794,6 +800,10 @@ impl<M: SpacetimeModule> DbConnectionBuilder<M> {
              on_connect_error: None,
              on_disconnect: None,
              params: <_>::default(),
 +            trusted_cert: None,
++            client_cert: None,
++            client_key: None,
++            trust_system_certs: None,
          }
      }
  
-@@ -841,6 +844,7 @@ but you must call one of them, or else the connection will never progress.
+@@ -841,6 +851,11 @@ but you must call one of them, or else the connection will never progress.
                  self.token.as_deref(),
                  get_connection_id(),
                  self.params,
 +                self.trusted_cert.as_ref(),
++                self.client_cert.as_ref(),
++                self.client_key.as_ref(),
++                //XXX: trust system/root store by default, for clients when verifying server certs!
++                self.trust_system_certs.unwrap_or(true),
              ))
          })
          .map_err(|source| crate::Error::FailedToConnect {
-@@ -892,6 +896,11 @@ but you must call one of them, or else the connection will never progress.
+@@ -892,6 +907,34 @@ but you must call one of them, or else the connection will never progress.
          self
      }
  
@@ -1829,11 +3791,34 @@ index e1e4133e..fbc2dd57 100644
 +        self
 +    }
 +
++    pub fn with_client_cert(mut self, cert: Option<impl Into<PathBuf>>) -> Self {
++        self.client_cert = cert.map(|c| c.into());
++        self
++    }
++
++    pub fn with_client_key(mut self, key: Option<impl Into<PathBuf>>) -> Self {
++        self.client_key = key.map(|c| c.into());
++        self
++    }
++
++//    pub fn with_trust_system_certs(mut self, trust: bool) -> Self {
++//        self.trust_system_certs = trust;
++//        self
++//    }
++//    pub fn with_trust_system_certs(mut self, trust: Option<impl Into<Option<bool>>>) -> Self {
++//        self.trust_system_certs = trust.map(|t| t.into()).unwrap_or(None);
++//        self
++//    }
++    pub fn with_trust_system_certs(mut self, trust: Option<impl Into<bool>>) -> Self {
++        self.trust_system_certs = trust.map(|t| t.into());
++        self
++    }
++
      /// Set the name or identity of the remote module.
      pub fn with_module_name(mut self, name_or_identity: impl Into<String>) -> Self {
          self.module_name = Some(name_or_identity.into());
 diff --git a/crates/sdk/src/websocket.rs b/crates/sdk/src/websocket.rs
-index 436520d5..90148b84 100644
+index 436520d50..006aba31f 100644
 --- a/crates/sdk/src/websocket.rs
 +++ b/crates/sdk/src/websocket.rs
 @@ -21,10 +21,10 @@ use tokio::task::JoinHandle;
@@ -1868,11 +3853,14 @@ index 436520d5..90148b84 100644
  fn parse_scheme(scheme: Option<Scheme>) -> Result<Scheme, UriError> {
      Ok(match scheme {
          Some(s) => match s.as_str() {
-@@ -207,19 +219,68 @@ impl WsConnection {
+@@ -207,19 +219,159 @@ impl WsConnection {
          token: Option<&str>,
          connection_id: ConnectionId,
          params: WsParams,
 +        trusted_cert: Option<&std::path::PathBuf>,
++        client_cert: Option<&std::path::PathBuf>,
++        client_key: Option<&std::path::PathBuf>,
++        trust_system_certs: bool,
      ) -> Result<Self, WsError> {
          let req = make_request(host, db_name, token, connection_id, params)?;
  
@@ -1881,7 +3869,6 @@ index 436520d5..90148b84 100644
  
 -        let (sock, _): (WebSocketStream<MaybeTlsStream<TcpStream>>, _) = connect_async_with_config(
 +        let host = uri.clone(); //shadow, and it's thus wss:// not https://
-+        use native_tls::TlsConnector;
 +        use std::sync::Arc;
 +        use tokio::net::TcpStream;
 +        use tokio_tungstenite::{client_async_tls_with_config, Connector, MaybeTlsStream, WebSocketStream};
@@ -1907,12 +3894,101 @@ index 436520d5..90148b84 100644
 +
 +        let connector = if host.scheme_str() == Some("wss") {
 +            //FIXME: --cert implies wss, or do we want to allow --cert even for ws instead of error-ing!
-+            let mut builder = TlsConnector::builder();
-+            if let Some(cert_path) = trusted_cert {
-+                if let Some(cert) = spacetimedb_lib::load_root_cert(Some(cert_path.as_path())).await? {
-+                    builder.add_root_certificate(cert);
-+                }
++            let mut builder = native_tls::TlsConnector::builder();
++
++            // Validate trust store
++            if !trust_system_certs && trusted_cert.is_none() {
++                return Err(WsError::Tungstenite {
++                    uri: uri.clone(),
++                    source: Arc::new(tokio_tungstenite::tungstenite::Error::Io(std::io::Error::new(
++                                std::io::ErrorKind::Other,
++                                "--no-trust-system-root-store requires --trust-server-cert",
++                    ))),
++                });
 +            }
++            if !trust_system_certs {
++                eprintln!("Not trusting system/root cert store.");
++                builder.disable_built_in_roots(true);
++            }
++
++            if let Some(cert_path) = trusted_cert {
++                // This is the server's self-signed cert or local CA's cert that signed the server's cert.
++                let cert_data = spacetimedb_lib::read_file_limited(cert_path)
++                    .await?;
++                //FIXME: fix this and 2 more below.
++//                    .map_err(|e| WsError::Tungstenite {
++//                        uri: uri.clone(),
++//                        source: Arc::new(tokio_tungstenite::tungstenite::Error::Io(e)),
++//                    })?;
++                let certs = rustls_pemfile::certs(&mut std::io::Cursor::new(cert_data))
++                    .collect::<Result<Vec<_>, _>>()
++                    .map_err(|e| WsError::Tungstenite {
++                        uri: uri.clone(),
++                        source: Arc::new(tokio_tungstenite::tungstenite::Error::Io(std::io::Error::new(
++                                    std::io::ErrorKind::Other,
++                                    format!("Failed to parse trust certificates: {}", e),
++                        ))),
++                    })?;
++                if certs.is_empty() {
++                    return Err(WsError::Tungstenite {
++                        uri: uri.clone(),
++                        source: Arc::new(tokio_tungstenite::tungstenite::Error::Io(std::io::Error::new(
++                                    std::io::ErrorKind::Other,
++                                    format!("No valid certificates in {}", cert_path.display()),
++                        ))),
++                    });
++                }//if
++                for cert in certs {
++                    builder
++                        .add_root_certificate(native_tls::Certificate::from_der(&cert).map_err(|e| WsError::Tungstenite {
++                            uri: uri.clone(),
++                            source: Arc::new(tokio_tungstenite::tungstenite::Error::Io(std::io::Error::new(
++                                        std::io::ErrorKind::Other,
++                                        e,
++                            ))),
++                        })?);
++                }//for
++            }//if
++
++            // Configure mTLS
++            if let Some(cert_path) = client_cert {
++                let key_path = client_key.ok_or_else(|| WsError::Tungstenite {
++                    uri: uri.clone(),
++                    source: Arc::new(tokio_tungstenite::tungstenite::Error::Io(std::io::Error::new(
++                                std::io::ErrorKind::Other,
++                                "--client-key is required with --client-cert",
++                    ))),
++                })?;
++                let cert_data = spacetimedb_lib::read_file_limited(cert_path)
++                    .await?;
++//                    .map_err(|e| WsError::Tungstenite {
++//                        uri: uri.clone(),
++//                        source: Arc::new(tokio_tungstenite::tungstenite::Error::Io(e)),
++//                    })?;
++                let key_data = spacetimedb_lib::read_file_limited(key_path)
++                    .await?;
++//                    .map_err(|e| WsError::Tungstenite {
++//                        uri: uri.clone(),
++//                        source: Arc::new(tokio_tungstenite::tungstenite::Error::Io(e)),
++//                    })?;
++                //use anyhow::Context;
++                let identity = native_tls::Identity::from_pkcs8(&cert_data, &key_data)
++//                    .context("Failed to parse client cert/key")?;
++//                    //XXX: that shows: error: "Failed to parse client cert/key" only!
++                    .map_err(|e| WsError::Tungstenite {
++                    uri: uri.clone(),
++                    //this shows: error: "Failed to parse client cert/key: expected PKCS#8 PEM"
++                    source: Arc::new(tokio_tungstenite::tungstenite::Error::Io(std::io::Error::new(
++                                std::io::ErrorKind::Other,
++                                // {:#?} here would show only "NotPkcs8"
++                                // {} here shows "expected PKCS#8 PEM"
++                                format!("Failed to parse client cert/key: {}", e),
++                    //TODO: make better error msgs like these in other places that use .context()
++                    ))),
++                })?;
++                builder.identity(identity);
++            } //if
++
 +            let tls_connector = builder.build().map_err(|e| WsError::Tungstenite {
 +                uri: uri.clone(),
 +                source: Arc::new(tokio_tungstenite::tungstenite::Error::Io(std::io::Error::new(
@@ -1939,7 +4015,7 @@ index 436520d5..90148b84 100644
          )
          .await
          .map_err(|source| WsError::Tungstenite {
-@@ -231,7 +292,7 @@ impl WsConnection {
+@@ -231,7 +383,7 @@ impl WsConnection {
              connection_id,
              sock,
          })
@@ -1949,106 +4025,130 @@ index 436520d5..90148b84 100644
      pub(crate) fn parse_response(bytes: &[u8]) -> Result<ServerMessage<BsatnFormat>, WsError> {
          let (compression, bytes) = bytes.split_first().ok_or(WsError::EmptyMessage)?;
 diff --git a/crates/standalone/Cargo.toml b/crates/standalone/Cargo.toml
-index 5207edf4..beef27b7 100644
+index 5207edf40..c83862da6 100644
 --- a/crates/standalone/Cargo.toml
 +++ b/crates/standalone/Cargo.toml
-@@ -29,6 +29,16 @@ spacetimedb-paths.workspace = true
+@@ -29,6 +29,22 @@ spacetimedb-paths.workspace = true
  anyhow.workspace = true
  async-trait.workspace = true
  axum.workspace = true
 +
 +# Add this for TLS support
-+#axum-server = "0.6"  # Compatible with axum 0.7.9
-+#axum-server = "0.7"  # Compatible with axum 0.7.9
-+axum-server = { version = "0.7.2", features = ["tls-rustls"] }
++#axum-server = { version = "0.7.2", features = ["tls-rustls"] }
++axum-server.workspace=true
++#rustls-platform-verifier.workspace=true
++rustls-native-certs.workspace=true
++x509-parser.workspace=true
++sha2.workspace=true
 +
-+ring = "0.17"  # explicitly add this for the CryptoProvider, even tho it's included transitively.
-+rustls= { version="0.23", default-features = true, features=[ "ring" ] }
-+rustls-pemfile = "2.2"
++#ring = "0.17"  # explicitly add this for the CryptoProvider, even tho it's included transitively.
++ring.workspace=true
++#rustls= { version="0.23", default-features = true, features=[ "ring" ] }
++rustls.workspace=true
++#rustls-pemfile = "2.2"
++rustls-pemfile.workspace=true
 +
  clap = { workspace = true, features = ["derive", "string"] }
  dirs.workspace = true
  futures.workspace = true
 diff --git a/crates/standalone/src/subcommands/start.rs b/crates/standalone/src/subcommands/start.rs
-index d74267c6..fd3e2ae3 100644
+index d74267c64..072cad96b 100644
 --- a/crates/standalone/src/subcommands/start.rs
 +++ b/crates/standalone/src/subcommands/start.rs
-@@ -1,4 +1,9 @@
+@@ -1,4 +1,8 @@
  use std::sync::Arc;
 +use std::path::Path;
 +use std::path::PathBuf;
-+use tokio::io::AsyncReadExt;
 +use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 +use rustls::pki_types::PrivatePkcs8KeyDer;
  
  use crate::StandaloneEnv;
  use anyhow::Context;
-@@ -13,7 +18,6 @@ use spacetimedb_client_api::routes::database::DatabaseRoutes;
+@@ -13,7 +17,8 @@ use spacetimedb_client_api::routes::database::DatabaseRoutes;
  use spacetimedb_client_api::routes::router;
  use spacetimedb_paths::cli::{PrivKeyPath, PubKeyPath};
  use spacetimedb_paths::server::ServerDataDir;
 -use tokio::net::TcpListener;
++
++pub use spacetimedb_lib::read_file_limited;
  
  pub fn cli() -> clap::Command {
      clap::Command::new("start")
-@@ -67,9 +71,136 @@ pub fn cli() -> clap::Command {
+@@ -67,9 +72,158 @@ pub fn cli() -> clap::Command {
          .arg(Arg::new("in_memory").long("in-memory").action(SetTrue).help(
              "If specified the database will run entirely in memory. After the process exits all data will be lost.",
          ))
-+        .arg(Arg::new("ssl").long("ssl").alias("tls").alias("https").alias("secure").action(clap::ArgAction::SetTrue).help("enables the standalone server to listen in SSL mode, ie. use https instead of http to connect to it. Aliases --tls, --ssl, --secure, or --https."))
++
++        .arg(spacetimedb_lib::client_trust_cert())
++        .arg(spacetimedb_lib::client_trust_system_root_store())
++        .arg(spacetimedb_lib::client_no_trust_system_root_store())
++
 +        .arg(
-+            spacetimedb_lib::cert()
-+            .requires("ssl")
-+            .help("--cert server.crt: The server sends this to clients during the TLS handshake. ie. server's certificate which contains its public key, which if it's self-signed then this is the file that you must pass to clients via --cert when talking to the server from a client(or the cli), or if signed by a local CA then pass that CA's cert to your clients instead, in order to can trust this server from a client connection. Otherwise, you don't have to pass anything to clients if this cert was signed by a public CA like Let's Encrypt.")
++            Arg::new("ssl")
++            .long("ssl")
++            .alias("tls")
++            .alias("https")
++            .alias("secure")
++            .action(clap::ArgAction::SetTrue)
++            .help("enables the standalone server to listen in SSL mode, ie. use https instead of http to connect to it. Aliases --tls, --ssl, --secure, or --https. While in this mode, plaintext connections aren't supported, only SSL/TLS.")
 +        )
-+        .arg(Arg::new("key").long("key").requires("ssl").value_name("FILE")
++        .arg(
++//            spacetimedb_lib::cert()
++            clap::Arg::new("server-cert")
++            .long("server-cert")
++            .alias("cert")
++            .alias("server-public-cert")
++            .value_name("FILE")
++            .action(clap::ArgAction::Set)
++            .value_parser(clap::value_parser!(std::path::PathBuf))
++            .required(false)
++            .requires("ssl")
++            .help("--cert server.crt: The server sends this to clients during the TLS handshake. ie. server's certificate(in PEM format), which if it's self-signed then this is the file that you must pass to clients via --cert when talking to the server from a client(or the cli), or if signed by a local CA then pass that CA's cert to your clients instead, in order to can trust this server from a client connection. Otherwise, you don't have to pass anything to clients if this cert was signed by a public CA like Let's Encrypt.")
++        )
++        .arg(
++            Arg::new("server-key")
++            .long("server-key")
++            .alias("server-private-key")
++            .alias("private-key")
++            .alias("key")
++            .requires("ssl")
++            .requires("server-cert")
++            .value_name("FILE")
 +            .action(clap::ArgAction::Set)
 +            .value_parser(clap::value_parser!(PathBuf))
-+            .help("--key server.key: The server's private key used to decrypt and sign responses."))
++            .help("--key server.key: The server's private key used to decrypt and sign responses. Used for SSL/TLS connections ie. https"))
      // .after_help("Run `spacetime help start` for more detailed information.")
  }
  
-+/// Asynchronously reads a file with a maximum size limit of 1 MiB.
-+async fn read_file_limited(path: &Path) -> anyhow::Result<Vec<u8>> {
-+    const MAX_SIZE: usize = 1_048_576; // 1 MiB
-+
-+    let file = tokio::fs::File::open(path)
-+        .await
-+        .map_err(|e| anyhow::anyhow!("Failed to open file {}: {}", path.display(), e))?;
-+    let metadata = file
-+        .metadata()
-+        .await
-+        .map_err(|e| anyhow::anyhow!("Failed to read metadata for {}: {}", path.display(), e))?;
-+
-+    if metadata.len() > MAX_SIZE as u64 {
-+        return Err(anyhow::anyhow!(
-+            "File {} exceeds maximum size of {} bytes",
-+            path.display(),
-+            MAX_SIZE
-+        ));
-+    }
-+
-+    let mut reader = tokio::io::BufReader::new(file);
-+    let mut data = Vec::with_capacity(metadata.len() as usize);
-+    reader
-+        .read_to_end(&mut data)
-+        .await
-+        .map_err(|e| anyhow::anyhow!("Failed to read file {}: {}", path.display(), e))?;
-+
-+    Ok(data)
-+}
 +
 +/// Loads certificates from a PEM file.
-+async fn load_certs(file_path: &Path) -> anyhow::Result<Vec<CertificateDer<'static>>> {
++async fn load_certs(file_path: &Path, expected_num: Option<usize>) -> anyhow::Result<Vec<CertificateDer<'static>>> {
 +    let data = read_file_limited(file_path).await?;
 +    let certs: Vec<CertificateDer<'static>> = rustls_pemfile::certs(&mut std::io::Cursor::new(data))
 +        .collect::<Result<Vec<_>, _>>()
 +        .map_err(|e| anyhow::anyhow!("Failed to parse certificates from {}: {:?}", file_path.display(), e))?;
-+    match certs.len() {
-+        0 => Err(anyhow::anyhow!("No certificates found in file {}", file_path.display())),
-+        1 => Ok(certs),
-+        _ => Err(anyhow::anyhow!("Multiple certificates found in file {}; only one certificate is expected.", file_path.display())),
++    if certs.len() < 1 {
++        //Err(anyhow::anyhow!("No certificate(s) found in file {}", file_path.display()))
++        eprintln!("WARNING: No certificate(s) found in file {}", file_path.display())
 +    }
++//    } else {
++//        Ok(certs)
++//    }
++    if let Some(expected_num)=expected_num {
++        let len=certs.len();
++        if len == expected_num {
++            return Ok(certs);
++        } else {
++            return Err(anyhow::anyhow!("{} certificate(s) found in file {}, but expected {} cert(s) exactly!", len, file_path.display(), expected_num));
++        }
++    } else {
++        return Ok(certs);
++    }
++//    match certs.len() {
++//        0 => Err(anyhow::anyhow!("No certificate(s) found in file {}, expected {} cert(s)", file_path.display(), expected_num)),
++//        expected_num => Ok(certs),
++//        _ => Err(anyhow::anyhow!("Multiple certificates found in file {}; only {} certificate(s) is expected.", file_path.display(), expected_num)),
++//    }
 +}
 +
 +/// Loads a private key from a PEM file.
@@ -2057,6 +4157,11 @@ index d74267c6..fd3e2ae3 100644
 +    let keys: Vec<PrivatePkcs8KeyDer<'static>> = rustls_pemfile::pkcs8_private_keys(&mut std::io::Cursor::new(data))
 +        .collect::<Result<Vec<_>, _>>()
 +        .map_err(|e| anyhow::anyhow!("Failed to parse private keys from {}: {:?}", file_path.display(), e))?;
++//    if keys.len() < 1 {
++//        Err(anyhow::anyhow!("No private key(s) found in file {}", file_path.display())),
++//    } else {
++//        Ok(keys)
++//    }
 +    match keys.len() {
 +        0 => Err(anyhow::anyhow!("No private key found in file {}", file_path.display())),
 +        1 => Ok(PrivateKeyDer::Pkcs8(keys.into_iter().next().unwrap())),
@@ -2128,7 +4233,7 @@ index d74267c6..fd3e2ae3 100644
  pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
      let listen_addr = args.get_one::<String>("listen_addr").unwrap();
      let cert_dir = args.get_one::<spacetimedb_paths::cli::ConfigDir>("jwt_key_dir");
-@@ -143,10 +274,49 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
+@@ -143,10 +297,122 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
      let extra = axum::Router::new().nest("/health", spacetimedb_client_api::routes::health::router());
      let service = router(&ctx, db_routes, extra).with_state(ctx);
  
@@ -2144,12 +4249,84 @@ index d74267c6..fd3e2ae3 100644
 +        rustls::crypto::CryptoProvider::install_default(custom_crypto_provider())
 +            .map_err(|e| anyhow::anyhow!("Failed to install custom CryptoProvider: {:?}", e))?;
 +
-+        let cert_path: &Path = args.get_one::<PathBuf>("cert").context("Missing --cert for SSL")?.as_path();
-+        let key_path: &Path = args.get_one::<PathBuf>("key").context("Missing --key for SSL")?.as_path();
++        let cert_path: &Path = args.get_one::<PathBuf>("server-cert").context("Missing --cert for SSL")?.as_path();
++        let key_path: &Path = args.get_one::<PathBuf>("server-key").context("Missing --key for SSL")?.as_path();
 +
 +        // Load certificate and private key with file size limit
-+        let cert_chain = load_certs(cert_path).await?;
++        let cert_chain = load_certs(cert_path,Some(1)).await?;
 +        let private_key = load_private_key(key_path).await?;
++
++        // XXX: No revocation status is checked, so a valid-but-revoked cert would pass. (because
++        // code doesn't use .with_crls() )
++
++        // Initialize root store
++        let mut roots = rustls::RootCertStore::empty();
++
++        // Handle system root certificates
++        let trust_system = args.get_flag("client-trust-system-root-store");
++
++        use x509_parser::prelude::FromDer;
++        use sha2::{Digest, Sha256};
++        //use openssl::sha::{Sha256, Digest};
++
++        if trust_system {
++            //unusual to trust system store with mTLS
++            //load system trust store certs
++            let cr:rustls_native_certs::CertificateResult = rustls_native_certs::load_native_certs();
++            if cr.errors.len() > 0 {
++                return Err(anyhow::anyhow!("Failed to load system certs: {:#?}", cr.errors));
++            }
++            let system_store = cr.expect("impossible now: failed to load system certs.");
++            for cert in system_store {
++                // Parse and log cert details
++                if let Ok((_, parsed)) = x509_parser::prelude::X509Certificate::from_der(cert.as_ref()) {
++                    let subject = parsed.subject().to_string();
++                    let issuer = parsed.issuer().to_string();
++                    let not_after = parsed.validity().not_after.to_string();
++                    let serial = parsed.serial.to_string();
++                    let fingerprint = format!("{:x}", Sha256::digest(cert.as_ref()));
++                    log::info!(
++                        "System cert: subject={}, issuer={}, serial={}, expires={}, fingerprint={}",
++                        subject, issuer, serial, not_after, fingerprint
++                    );
++                } else {
++                    log::warn!("Failed to parse system cert");
++                }
++
++                roots.add(cert)?;
++            }
++        }
++
++        // Load custom client trust certificates
++        if let Some(client_trust_path) = args.get_one::<PathBuf>("client-trust-cert") {
++            let client_certs = load_certs(client_trust_path, None).await?;
++            for cert in client_certs {
++                // Parse and log cert details
++                if let Ok((_, parsed)) = x509_parser::prelude::X509Certificate::from_der(cert.as_ref()) {
++                    let subject = parsed.subject().to_string();
++                    let issuer = parsed.issuer().to_string();
++                    let not_after = parsed.validity().not_after.to_string();
++                    let serial = parsed.serial.to_string();
++                    let fingerprint = format!("{:x}", Sha256::digest(cert.as_ref()));
++                    log::info!(
++                        "Custom cert: subject={}, issuer={}, serial={}, expires={}, fingerprint={}",
++                        subject, issuer, serial, not_after, fingerprint
++                    );
++                } else {
++                    log::warn!("Failed to parse custom cert from file {}", client_trust_path.display());
++                }
++                roots.add(cert)?;
++            }
++        }
++
++        // Configure client authentication (mTLS)
++        let client_auth: Arc<dyn rustls::server::danger::ClientCertVerifier> = if args.get_one::<PathBuf>("client-trust-cert").is_some() || trust_system {
++            rustls::server::WebPkiClientVerifier::builder(roots.into()) //Arc::new(roots))
++                .build()
++                .map_err(|e| anyhow::anyhow!("Failed to build client verifier: {}", e))?
++        } else {
++            rustls::server::WebPkiClientVerifier::no_client_auth()
++        };
 +
 +        // Create ServerConfig with secure settings
 +        let config=
@@ -2158,7 +4335,8 @@ index d74267c6..fd3e2ae3 100644
 +//                &rustls::version::TLS12,
 +            ])
 +//            rustls::ServerConfig::builder() // using this instead, wouldn't restrict proto versions.
-+            .with_no_client_auth()
++            .with_client_cert_verifier(client_auth)
++            //.with_no_client_auth() ^
 +            .with_single_cert(cert_chain, private_key)
 +            .map_err(|e| anyhow::anyhow!("Failed to set certificates from files pub:'{}', priv:'{}', err: {}", cert_path.display(), key_path.display(), e))?;
 +

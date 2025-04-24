@@ -1,6 +1,7 @@
 -------------
 ----------------
 crates in Cargo.toml should probably be moved to workspace so they're same version (when updated) in all places.
+check if this is fully done? ^
 ----------------
 add new tests for the modifs that this patch does!
 ----------------
@@ -8,27 +9,27 @@ make sure all manner of 'cargo test' tests pass!
 ----------------
 remove commented out code
 ----------------
-cleanup clearly not needed commented out code
+cleanup clearly-not-needed commented out code
 ----------------
 change some added println/eprintln into log::debug! ?
 ----------------
 FIXME: Changing protocol from https to https
 ----------------
-add mTLS (TLS client auth via client certs) - it's done just needs testing (rust client and server seem to work so far, tested)
-
-add it in the main patch! currently it's in ./mTLS.patch
 ----------------
 make sure the args depends on each other properly
 ----------------
-read_file_limited and other similar code that isn't in a function, are both broken
-i didn't check the code that grok3 made, tested it superficially though, and it worked
-now that I looked, it's clear why it worked and why it's incorrect.
+read_file_limited(fixed) and other similar code that isn't in a function(not yet fixed), are both broken
+TODO: load_root_cert is still broken
+I didn't check the code that grok3 made, tested it superficially though, and it worked.
+but now that I looked, it's clear why it worked and why it's incorrect.
 
 ----------------
 map_request_error!() is kind of a mess to call too
 might want an Option<String> (with proper ref) instead of String arg for url, because some errors may happen before even sending the request such as in build_config, thus before .get().send()
 ----------------
 make sure any new anyhow::anyhow!() created errors aren't overwriting existing ones, instead use .context() or .with_context() depending on type.
+----------------
+still need to check some places like the example client code maybe, to see if it properly returns the error when client certs were required but not provided to a mTLS server (ssl alert 116)
 ----------------
 
 
