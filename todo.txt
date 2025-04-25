@@ -32,6 +32,8 @@ make sure any new anyhow::anyhow!() created errors aren't overwriting existing o
 still need to check some places like the example client code maybe, to see if it properly returns the error when client certs were required but not provided to a mTLS server (ssl alert 116)
 and make sure it goes thru map_request_error
 ----------------
+sanitize private keys, like via zeroize (good to zero instead of randomize, for compressed memory)
+----------------
 
 
 
