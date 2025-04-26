@@ -5,6 +5,9 @@ This repo provides a patch for [SpacetimeDB](https://github.com/clockworklabs/Sp
 - Target: [SpacetimeDB](https://github.com/clockworklabs/SpacetimeDB)
 - License: Business Source License 1.1 (see `LICENSE.txt`), switches to AGPLv3 on March 27, 2030
 
+## Requirements:
+- the `Cargo.toml` from the repo's root dir has a `[patch.crates-io]` section for a couple of repos which means these need to be cloned and patched locally and modify the `Cargo.toml` paths in there to point to where they are locally.  
+
 ## Usage:
 - apply patch:  
 assuming you're in bash shell:  
