@@ -869,7 +869,7 @@ index f9d50525f..e040e1e75 100644
  name = "xattr"
  version = "1.3.1"
 diff --git a/Cargo.toml b/Cargo.toml
-index e4d7cf8c5..c8b6fd499 100644
+index e4d7cf8c5..8342f6af9 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
 @@ -66,7 +66,8 @@ lto = "thin"
@@ -921,7 +921,7 @@ index e4d7cf8c5..c8b6fd499 100644
  ron = "0.8"
  rusqlite = { version = "0.29.0", features = ["bundled", "column_decltype"] }
  rust_decimal = { version = "1.29.1", features = ["db-tokio-postgres"] }
-@@ -285,6 +297,28 @@ tikv-jemalloc-ctl = { version = "0.6.0", features = ["stats"] }
+@@ -285,6 +297,29 @@ tikv-jemalloc-ctl = { version = "0.6.0", features = ["stats"] }
  jemalloc_pprof = { version = "0.7", features = ["symbolize", "flamegraph"] }
  zstd-framed = { version = "0.1.1", features = ["tokio"] }
  
@@ -929,7 +929,8 @@ index e4d7cf8c5..c8b6fd499 100644
 +#uncomment this to disable the feature: (and comment the next one)
 +#rustls-pki-types = { version = "1.11" }
 +#XXX: doing this here: (comment the above, uncomment this next)
-+rustls-pki-types = { version = "1.11", features = ["trace_drop_and_zeroize"] }
++rustls-pki-types = { version = "1.11.0", features = ["trace_drop_and_zeroize"] }
++#rustls-pki-types = { path= "/home/user/SOURCE/github/modified_forks/pki-types", features = ["trace_drop_and_zeroize"] } #don't use this path= way, because it compiles external client/server projects but they're incomplete, unless u add the patch section to them too.
 +#and then in things like ./crates/standalone/Cargo.toml doing:
 +#rustls-pki-types.workspace=true
 +#will make any dep's use of this pki-types crate enable this 'trace_drop_and_zeroize' feature,
@@ -950,10 +951,26 @@ index e4d7cf8c5..c8b6fd499 100644
  # Vendor the openssl we rely on, rather than depend on a
  # potentially very old system version.
  openssl = { version = "0.10", features = ["vendored"] }
-@@ -317,3 +351,24 @@ features = [
+@@ -317,3 +352,69 @@ features = [
    "ondemand",
  ]
  
++#XXX: caveat: this patch section must exist in client/server external repos, even tho it works for those within this repo, in ./crates/sdk/... otherwise you'll get these errors:
++#/home/user/SOURCE/my/quickstart-chat/client
++#$ cargo build
++#    Updating crates.io index
++#error: failed to select a version for `rustls-pki-types`.
++#    ... required by package `spacetimedb-lib v1.1.1 (/home/user/SOURCE/SpacetimeDB/crates/lib)`
++#    ... which satisfies path dependency `spacetimedb-lib` (locked to 1.1.1) of package `spacetimedb-sdk v1.1.1 (/home/user/SOURCE/SpacetimeDB/crates/sdk)`
++#    ... which satisfies path dependency `spacetimedb-sdk` (locked to 1.1.1) of package `client v0.1.0 (/home/user/SOURCE/my/quickstart-chat/client)`
++#versions that meet the requirements `^1.11` are: 1.11.0
++#
++#the package `spacetimedb-lib` depends on `rustls-pki-types`, with features: `trace_drop_and_zeroize` but `rustls-pki-types` does not have these features.
++#
++#
++#failed to select a version for `rustls-pki-types` which could resolve this conflict
++#
++#"The core problem is that the [patch.crates-io] section in the SpacetimeDB workspace’s root Cargo.toml (at /home/user/SOURCE/SpacetimeDB/Cargo.toml) doesn’t apply to the quickstart-chat projects (server and client) because they are in a separate workspace or standalone Cargo.toml. This causes the rustls-pki-types dependency to resolve to the upstream v1.11.0, which lacks trace_drop_and_zeroize, resulting in the compile error(from above)"
 +[patch.crates-io]
 +#A version that has zeroize, because 1.12.0 or so, isn't yet released.
 +#Patched to have zeroize() method but doesn't zeroize on drop(this isn't enough for our uses!):
@@ -962,6 +979,33 @@ index e4d7cf8c5..c8b6fd499 100644
 +#Patched to zeroize on drop(good for us):
 +rustls-pki-types = { path = "/home/user/SOURCE/github/modified_forks/pki-types" }
 +#^ it's indirectly used though.
++#Without this here in patch section(ie. in case i used path= directly in the deps above, but none here in patch section), then not all deps will use it, like:
++#/home/user/SOURCE/SpacetimeDB
++#$ cargo tree|grep -i pki
++#│   │   └── rustls-pki-types v1.11.0
++#├── rustls-pki-types v1.11.0 (/home/user/SOURCE/github/modified_forks/pki-types)
++#│       ├── rustls-pki-types v1.11.0 (/home/user/SOURCE/github/modified_forks/pki-types) (*)
++#    │   │   │   ├── rustls-pki-types v1.11.0
++#    │   │   │   ├── rustls-webpki v0.103.1
++#    │   │   │   │   ├── rustls-pki-types v1.11.0
++#    │   │   ├── rustls-pki-types v1.11.0
++#    │   │   │   ├── rustls-pki-types v1.11.0
++#    │   │   └── rustls-pki-types v1.11.0
++#    │   ├── rustls-pki-types v1.11.0 (/home/user/SOURCE/github/modified_forks/pki-types) (*)
++#but with it, it's all:
++#$ cargo tree|grep -i pki
++#│   │   └── rustls-pki-types v1.11.0 (/home/user/SOURCE/github/modified_forks/pki-types)
++#├── rustls-pki-types v1.11.0 (/home/user/SOURCE/github/modified_forks/pki-types) (*)
++#│       ├── rustls-pki-types v1.11.0 (/home/user/SOURCE/github/modified_forks/pki-types) (*)
++#    │   │   │   ├── rustls-pki-types v1.11.0 (/home/user/SOURCE/github/modified_forks/pki-types) (*)
++#    │   │   │   ├── rustls-webpki v0.103.1
++#    │   │   │   │   ├── rustls-pki-types v1.11.0 (/home/user/SOURCE/github/modified_forks/pki-types) (*)
++#    │   │   ├── rustls-pki-types v1.11.0 (/home/user/SOURCE/github/modified_forks/pki-types) (*)
++#    │   │   │   ├── rustls-pki-types v1.11.0 (/home/user/SOURCE/github/modified_forks/pki-types) (*)
++#    │   │   └── rustls-pki-types v1.11.0 (/home/user/SOURCE/github/modified_forks/pki-types) (*)
++#    │   ├── rustls-pki-types v1.11.0 (/home/user/SOURCE/github/modified_forks/pki-types) (*)
++
++
 +
 +# a rustls that uses same pki-types patch.crates-io section from above and also enables pki-types' feature trace_drop_and_zeroize
 +#rustls = { path = "/home/user/SOURCE/github/rustls/rustls" }
@@ -974,6 +1018,8 @@ index e4d7cf8c5..c8b6fd499 100644
 +
 +#patched to not obscure connection errors behind ChannelClosed:
 +hyper-util = { path ="/home/user/SOURCE/my/channelclosed.reqwest/hyper-util" }
++
++#The current branch(TLS+mTLS) which added these changes to spacetimedb is also available as patch in: https://github.com/dare3path/spacetimedb-tls-patch
 +
 diff --git a/crates/cli/Cargo.toml b/crates/cli/Cargo.toml
 index 591d80a3c..c939b6f1c 100644
@@ -2954,10 +3000,10 @@ index 20e0591ca..fdea6e25e 100644
      }
  }
 diff --git a/crates/lib/Cargo.toml b/crates/lib/Cargo.toml
-index 1057d8fb8..0770d8070 100644
+index 1057d8fb8..0e01a9a6b 100644
 --- a/crates/lib/Cargo.toml
 +++ b/crates/lib/Cargo.toml
-@@ -43,6 +43,20 @@ thiserror.workspace = true
+@@ -43,6 +43,21 @@ thiserror.workspace = true
  blake3.workspace = true
  enum-map = { workspace = true, optional = true }
  
@@ -2974,10 +3020,45 @@ index 1057d8fb8..0770d8070 100644
 +reqwest.workspace=true
 +#This pki-types crate is actually an indirect(aka transitive) dep of reqwest above, but we want a feature enabled, so:
 +rustls-pki-types.workspace=true #needed here, to enable its 'trace_drop_and_zeroize' feature
++#rustls-pki-types = { version = "1.11", features = ["trace_drop_and_zeroize"] }
 +
  # For the 'proptest' feature.
  proptest = { workspace = true, optional = true }
  proptest-derive = { workspace = true, optional = true }
+@@ -57,3 +72,33 @@ ron.workspace = true
+ # Also as dev-dependencies for use in _this_ crate's tests.
+ proptest.workspace = true
+ proptest-derive.workspace = true
++
++##no effect if here:
++#[patch.crates-io]
++##A version that has zeroize, because 1.12.0 or so, isn't yet released.
++##Patched to have zeroize() method but doesn't zeroize on drop(this isn't enough for our uses!):
++##rustls-pki-types = { git = "https://github.com/rustls/pki-types.git", rev = "b59e08d49911b10c423d25bd9040cfbe5a6042ff" }
++#
++##Patched to zeroize on drop(good for us):
++#rustls-pki-types = { path = "/home/user/SOURCE/github/modified_forks/pki-types" }
++##^ it's indirectly used though.
++#
++## a rustls that uses same pki-types patch.crates-io section from above and also enables pki-types' feature trace_drop_and_zeroize
++##rustls = { path = "/home/user/SOURCE/github/rustls/rustls" }
++##so rustls's Cargo.toml is modded to look like this:
++### pki-types = { package = "rustls-pki-types", version = "1.11", features = ["alloc","trace_drop_and_zeroize"] }
++###...
++### ppatch.crates-io]
++### rustls-pki-types = { path = "/home/user/SOURCE/github/modified_forks/pki-types" } #patched with ./zeroize_on_drop.patch
++##XXX: this ^ (rustls hack) isn't needed if using the above inclusion of rustls-pki-types as dep here and .workspace=true in any Cargo.toml that has deps that use it.
++#
++##patched to not obscure connection errors behind ChannelClosed:
++#hyper-util = { path ="/home/user/SOURCE/my/channelclosed.reqwest/hyper-util" }
++#
++##The current branch(TLS+mTLS) which added these changes to spacetimedb is also available as patch in: https://github.com/dare3path/spacetimedb-tls-patch
++#
++
++##no effect, if here or in root dir aka workspace Cargo.toml
++#[patch.crates-io]
++#rustls-pki-types = { path = "/home/user/SOURCE/github/modified_forks/pki-types" }
++#hyper-util = { path ="/home/user/SOURCE/my/channelclosed.reqwest/hyper-util" }
 diff --git a/crates/lib/src/lib.rs b/crates/lib/src/lib.rs
 index d25e317ea..60fc89207 100644
 --- a/crates/lib/src/lib.rs
@@ -3600,7 +3681,7 @@ index d25e317ea..60fc89207 100644
 +
 +} // end of non_wasm! macro call
 diff --git a/crates/sdk/Cargo.toml b/crates/sdk/Cargo.toml
-index 9daa2a983..0f6a761f2 100644
+index 9daa2a983..970453a02 100644
 --- a/crates/sdk/Cargo.toml
 +++ b/crates/sdk/Cargo.toml
 @@ -29,6 +29,17 @@ prometheus.workspace = true
@@ -3621,6 +3702,16 @@ index 9daa2a983..0f6a761f2 100644
  
  [dev-dependencies]
  # for quickstart-chat and cursive-chat examples
+@@ -39,3 +50,9 @@ futures-channel.workspace = true
+ 
+ # for tests
+ spacetimedb-testing = { path = "../testing" }
++
++##no effect, if here or in root dir aka workspace Cargo.toml
++#[patch.crates-io]
++#rustls-pki-types = { path = "/home/user/SOURCE/github/modified_forks/pki-types" }
++#hyper-util = { path ="/home/user/SOURCE/my/channelclosed.reqwest/hyper-util" }
++
 diff --git a/crates/sdk/examples/quickstart-chat/main.rs b/crates/sdk/examples/quickstart-chat/main.rs
 index e04ff9cb3..041ae1650 100644
 --- a/crates/sdk/examples/quickstart-chat/main.rs
