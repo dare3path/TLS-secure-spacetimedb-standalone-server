@@ -873,7 +873,7 @@ index f9d50525f..e040e1e75 100644
  name = "xattr"
  version = "1.3.1"
 diff --git a/Cargo.toml b/Cargo.toml
-index e4d7cf8c5..8342f6af9 100644
+index e4d7cf8c5..71e59e644 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
 @@ -66,7 +66,8 @@ lto = "thin"
@@ -1023,13 +1023,20 @@ index e4d7cf8c5..8342f6af9 100644
 +#patched to not obscure connection errors behind ChannelClosed:
 +hyper-util = { path ="/home/user/SOURCE/my/channelclosed.reqwest/hyper-util" }
 +
-+#The current branch(TLS+mTLS) which added these changes to spacetimedb is also available as patch in: https://github.com/dare3path/spacetimedb-tls-patch
++#The current branch(TLS+mTLS) which added these changes to spacetimedb is also available as patch in: https://github.com/dare3path/spacetimedb-tls-patch  and if you want to use quickstart-chat example (client+server) with it, you might want to look at repo: https://github.com/dare3path/quickstart-chat
 +
 diff --git a/crates/cli/Cargo.toml b/crates/cli/Cargo.toml
-index 591d80a3c..c939b6f1c 100644
+index 591d80a3c..c8e2805a5 100644
 --- a/crates/cli/Cargo.toml
 +++ b/crates/cli/Cargo.toml
-@@ -74,6 +74,14 @@ wasmbin.workspace = true
+@@ -68,12 +68,20 @@ tokio.workspace = true
+ tokio-tungstenite.workspace = true
+ toml.workspace = true
+ toml_edit.workspace = true
+-tracing = { workspace = true, features = ["release_max_level_off"] }
++tracing = { workspace = true } #, features = ["release_max_level_off"] }
+ walkdir.workspace = true
+ wasmbin.workspace = true
  wasmtime.workspace = true
  webbrowser.workspace = true
  clap-markdown.workspace = true
@@ -3064,7 +3071,7 @@ index 1057d8fb8..0e01a9a6b 100644
 +#rustls-pki-types = { path = "/home/user/SOURCE/github/modified_forks/pki-types" }
 +#hyper-util = { path ="/home/user/SOURCE/my/channelclosed.reqwest/hyper-util" }
 diff --git a/crates/lib/src/lib.rs b/crates/lib/src/lib.rs
-index d25e317ea..60fc89207 100644
+index d25e317ea..f450abbfc 100644
 --- a/crates/lib/src/lib.rs
 +++ b/crates/lib/src/lib.rs
 @@ -6,6 +6,25 @@ use spacetimedb_sats::{impl_serialize, WithTypespace};
@@ -3093,7 +3100,7 @@ index d25e317ea..60fc89207 100644
  pub mod connection_id;
  pub mod db;
  mod direct_index_key;
-@@ -386,3 +405,590 @@ pub fn resolved_type_via_v9<T: SpacetimeType>() -> AlgebraicType {
+@@ -386,3 +405,593 @@ pub fn resolved_type_via_v9<T: SpacetimeType>() -> AlgebraicType {
          .resolve_refs()
          .expect("recursive types not supported")
  }
@@ -3233,13 +3240,16 @@ index d25e317ea..60fc89207 100644
 +        .alias("client-cert")
 +        .alias("client-certs")
 +        .alias("client-ca-cert")
++        .alias("client-CA-cert")
 +        .alias("client-root-cert")
 +        .alias("client-trust-certs")
 +        .alias("client-ca-certs")
++        .alias("client-CA-certs")
 +        .alias("client-root-certs")
 +        .alias("client-cert-bundle")
 +        .alias("client-trust-cert-bundle")
 +        .alias("client-ca-cert-bundle")
++        .alias("client-CA-cert-bundle")
 +        .alias("client-root-cert-bundle")
 +        .value_name("FILE")
 +        .action(clap::ArgAction::Set)
@@ -4193,7 +4203,7 @@ index 5207edf40..6bad5bc57 100644
  dirs.workspace = true
  futures.workspace = true
 diff --git a/crates/standalone/src/subcommands/start.rs b/crates/standalone/src/subcommands/start.rs
-index d74267c64..dacb086f4 100644
+index d74267c64..30a446aa8 100644
 --- a/crates/standalone/src/subcommands/start.rs
 +++ b/crates/standalone/src/subcommands/start.rs
 @@ -1,4 +1,9 @@
@@ -4411,7 +4421,16 @@ index d74267c64..dacb086f4 100644
  pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
      let listen_addr = args.get_one::<String>("listen_addr").unwrap();
      let cert_dir = args.get_one::<spacetimedb_paths::cli::ConfigDir>("jwt_key_dir");
-@@ -143,10 +334,156 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
+@@ -90,7 +281,7 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
+     };
+     let db_config = Config { storage };
+ 
+-    banner();
++    //banner();
+     let exe_name = std::env::current_exe()?;
+     let exe_name = exe_name.file_name().unwrap().to_str().unwrap();
+     println!("{} version: {}", exe_name, env!("CARGO_PKG_VERSION"));
+@@ -143,55 +334,157 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
      let extra = axum::Router::new().nest("/health", spacetimedb_client_api::routes::health::router());
      let service = router(&ctx, db_routes, extra).with_state(ctx);
  
@@ -4522,13 +4541,14 @@ index d74267c64..dacb086f4 100644
 +        // Configure client authentication (mTLS)
 +        // FIXME: check if this 'danger' thing is as good as using
 +        // crate::ConfigBuilder::with_client_auth_cert and .with_no_client_auth
-+        let client_auth: Arc<dyn rustls::server::danger::ClientCertVerifier> = if args.get_one::<PathBuf>("client-trust-cert").is_some() && trust_system {
-+            eprintln!("Trusting system root store for verifying client certs.");
++        let client_auth: Arc<dyn rustls::server::danger::ClientCertVerifier> = if args.get_one::<PathBuf>("client-trust-cert").is_some() {
++            eprintln!("Using mTLS");
++            // these roots here may just be the cert we specified without system root store's certs
 +            rustls::server::WebPkiClientVerifier::builder(roots.into()) //Arc::new(roots))
 +                .build()
 +                .map_err(|e| anyhow::anyhow!("Failed to build client verifier: {}", e))?
 +        } else {
-+            eprintln!("Not trusting system root store for verifying client certs.");
++            eprintln!("Not using mTLS.");
 +            rustls::server::WebPkiClientVerifier::no_client_auth()
 +        };
 +
@@ -4548,7 +4568,7 @@ index d74267c64..dacb086f4 100644
 +        let tls_config = axum_server::tls_rustls::RustlsConfig::from_config(Arc::new(config));
 +
 +        log::info!(
-+            "Starting SpacetimeDB with SSL on {}.",
++            "Starting SpacetimeDB with TLSv1.3(only) on {}.",
 +            addr,
 +        );
 +//        axum_server::bind_rustls(addr, tls_config)
@@ -4572,3 +4592,155 @@ index d74267c64..dacb086f4 100644
      Ok(())
  }
  
+-fn banner() {
+-    println!(
+-        r#"
+-┌───────────────────────────────────────────────────────────────────────────────────────────────────────┐
+-│                                                                                                       │
+-│                                                                                                       │
+-│                                                                              ⢀⠔⠁                      │
+-│                                                                            ⣠⡞⠁                        │
+-│                                              ⣀⣀⣤⣤⣤⣤⣤⣤⣤⣤⣤⣤⣀⣀⣀⣀⣀⣀⣀⣤⣤⡴⠒    ⢀⣠⡾⠋                          │
+-│                                         ⢀⣤⣶⣾88888888888888888888⠿⠋    ⢀⣴8⡟⠁                           │
+-│                                      ⢀⣤⣾88888⡿⠿⠛⠛⠛⠛⠛⠛⠛⠛⠻⠿88888⠟⠁    ⣠⣾88⡟                             │
+-│                                    ⢀⣴88888⠟⠋⠁ ⣀⣤⠤⠶⠶⠶⠶⠶⠤⣤⣀ ⠉⠉⠉    ⢀⣴⣾888⡟                              │
+-│                                   ⣠88888⠋  ⣠⠶⠋⠉         ⠉⠙⠶⣄   ⢀⣴888888⠃                              │
+-│                                  ⣰8888⡟⠁ ⣰⠟⠁               ⠈⠻⣆ ⠈⢿888888                               │
+-│                                 ⢠8888⡟  ⡼⠁                   ⠈⢧ ⠈⢿8888⡿                               │
+-│                                 ⣼8888⠁ ⢸⠇                     ⠸⡇ ⠘8888⣷                               │
+-│                                 88888  8                       8  88888                               │
+-│                                 ⢿8888⡄ ⢸⡆                     ⢰⡇ ⢀8888⡟                               │
+-│                                 ⣾8888⣷⡀ ⢳⡀                   ⢀⡞  ⣼8888⠃                               │
+-│                                 888888⣷⡀ ⠹⣦⡀               ⢀⣴⠏ ⢀⣼8888⠏                                │
+-│                                ⢠888888⠟⠁   ⠙⠶⣄⣀         ⣀⣠⠶⠋  ⣠88888⠋                                 │
+-│                                ⣼888⡿⠟⠁    ⣀⣀⣀ ⠉⠛⠒⠶⠶⠶⠶⠶⠒⠛⠉ ⢀⣠⣴88888⠟⠁                                  │
+-│                               ⣼88⡿⠋    ⢀⣴88888⣶⣦⣤⣤⣤⣤⣤⣤⣤⣤⣶⣾88888⡿⠛⠁                                    │
+-│                             ⢀⣼8⠟⠁    ⣠⣶88888888888888888888⡿⠿⠛⠁                                       │
+-│                            ⣠⡾⠋⠁    ⠤⠞⠛⠛⠉⠉⠉⠉⠉⠉⠉⠛⠛⠛⠛⠛⠛⠛⠛⠛⠛⠉⠉                                            │
+-│                          ⢀⡼⠋                                                                          │
+-│                        ⢀⠔⠁                                                                            │
+-│                                                                                                       │
+-│                                                                                                       │
+-│  .d8888b.                                     888    d8b                        8888888b.  888888b.   │
+-│ d88P  Y88b                                    888    Y8P                        888  "Y88b 888  "88b  │
+-│ Y88b.                                         888                               888    888 888  .88P  │
+-│  "Y888b.   88888b.   8888b.   .d8888b .d88b.  888888 888 88888b.d88b.   .d88b.  888    888 8888888K.  │
+-│     "Y88b. 888 "88b     "88b d88P"   d8P  Y8b 888    888 888 "888 "88b d8P  Y8b 888    888 888  "Y88b │
+-│       "888 888  888 .d888888 888     88888888 888    888 888  888  888 88888888 888    888 888    888 │
+-│ Y88b  d88P 888 d88P 888  888 Y88b.   Y8b.     Y88b.  888 888  888  888 Y8b.     888  .d88P 888   d88P │
+-│  "Y8888P"  88888P"  "Y888888  "Y8888P "Y8888   "Y888 888 888  888  888  "Y8888  8888888P"  8888888P"  │
+-│            888                                                                                        │
+-│            888                                                                                        │
+-│            888                                                                                        │
+-│                                  "Multiplayer at the speed of light"                                  │
+-└───────────────────────────────────────────────────────────────────────────────────────────────────────┘
+-    "#
+-    )
+-}
+diff --git a/crates/update/Cargo.toml b/crates/update/Cargo.toml
+index a698251f3..3022b509f 100644
+--- a/crates/update/Cargo.toml
++++ b/crates/update/Cargo.toml
+@@ -29,7 +29,7 @@ tar.workspace = true
+ tempfile.workspace = true
+ tokio.workspace = true
+ toml.workspace = true
+-tracing = { workspace = true, features = ["release_max_level_off"] }
++tracing = { workspace = true } #, features = ["release_max_level_off"] }
+ zip = "2.3"
+ 
+ [target.'cfg(windows)'.dependencies]
+diff --git a/go_build_and_install b/go_build_and_install
+new file mode 100755
+index 000000000..e44acf1e6
+--- /dev/null
++++ b/go_build_and_install
+@@ -0,0 +1,64 @@
++#!/usr/bin/bash
++
++#info: https://github.com/clockworklabs/SpacetimeDB?tab=readme-ov-file#installing-from-source
++#typeish="release"
++if ! cargo fetch --offline; then
++  echo "!!! using internet"
++  set -e
++  cargo fetch
++  echo "!!!! re-run this to not use internet."
++  exit 0
++fi
++typeish="debug"
++if test "$typeish" == "release"; then
++  echo "building in release mode"
++  set -e
++  #time cargo build --locked --release -p spacetimedb-standalone -p spacetimedb-update -p spacetimedb-cli
++  #debug
++  time cargo build --locked --release -p spacetimedb-standalone -p spacetimedb-update -p spacetimedb-cli
++  #time cargo build --release -p spacetimedb-standalone -p spacetimedb-update -p spacetimedb-cli
++  set +e
++  outdir="./target/release/"
++else
++  echo "building with debug/dev profile"
++  set -e
++  #time cargo build -p spacetimedb-standalone
++  #time cargo build --locked -p spacetimedb-standalone
++  #time cargo build -p spacetimedb-cli
++  #time cargo build --locked -p spacetimedb-cli
++  time cargo build --locked -p spacetimedb-standalone -p spacetimedb-update -p spacetimedb-cli
++  #time cargo build -p spacetimedb-standalone -p spacetimedb-update -p spacetimedb-cli ; echo "$(tput setab 1)undo me in $0$(tput sgr0)"
++  set +e
++  outdir="./target/debug/"
++fi
++# Create directories
++mkdir -p ~/.local/bin
++export STDB_VERSION="$(${outdir}/spacetimedb-cli --version | sed -n 's/.*spacetimedb tool version \([0-9.]*\);.*/\1/p')"
++mkdir -p ~/.local/share/spacetime/bin/$STDB_VERSION
++
++on_err() {
++  echo "$(tput setaf 1)Failed$(tput sgr0)"
++}
++trap on_err ERR
++set -e
++# Install the update binary
++cp ${outdir}/spacetimedb-cli ~/.local/share/spacetime/bin/$STDB_VERSION
++cp ${outdir}/spacetimedb-standalone ~/.local/share/spacetime/bin/$STDB_VERSION
++cp ${outdir}/spacetimedb-update ~/.local/bin/spacetime
++
++spacetime version list
++spacetime version use "$STDB_VERSION"
++#spacetime version
++ls -la ~/.local/share/spacetime/bin/current
++set +e
++
++# Check if $HOME/.local/bin is in the PATH
++if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
++    echo "$HOME/.local/bin is not in your PATH."
++    echo "You can add it by running:"
++    #echo "export PATH=\"\$HOME/.local/bin:\$PATH\""
++    #echo 'export PATH="$HOME/.local/bin:$PATH"'
++    echo 'export PATH="$PATH:$HOME/.local/bin"'
++fi
++
++echo "$(tput setaf 2)all done$(tput sgr0)"
+diff --git a/start b/start
+new file mode 100755
+index 000000000..9d7b3b911
+--- /dev/null
++++ b/start
+@@ -0,0 +1,18 @@
++#!/usr/bin/bash
++
++#XXX: use(with this) the example client/server scripts from: https://github.com/dare3path/quickstart-chat
++echo "This starts the standalone spacetimedb server, using the 'spacetimedb' executable that's been installed (not the one build inside the repo)"
++export RUST_LOG="spacetimedb=debug,spacetimedb_client_api=debug,spacetimedb_lib=debug,spacetimedb_standalone=debug,spacetimedb_commitlog=info,spacetimedb_durability=info,axum::rejection=debug"
++export RUST_BACKTRACE=1
++#time spacetime start --ssl --cert cert.pem --key key.pem
++#time spacetime start --edition standalone --listen-addr 127.1.2.3:6543 --ssl --cert ../spacetimedb-cert-gen/server.crt --key ../spacetimedb-cert-gen/server.key
++
++#mTLS:
++time spacetime start --edition standalone --listen-addr 127.1.2.3:6543 --ssl --cert ../spacetimedb-cert-gen/server.crt --key ../spacetimedb-cert-gen/server.key --client-CA-cert ../spacetimedb-cert-gen/ca4clients.crt --client-no-trust-system-root-store
++#listens as HTTP, not HTTPS:
++#time spacetime start --edition standalone --listen-addr 127.1.2.3:6543
++
++#old:
++#time spacetime start --edition standalone --listen-addr 127.0.0.1:3001 #this is HTTP
++#time spacetime start --edition standalone --listen-addr 127.0.0.1:3001  --ssl --cert ../spacetimedb-cert-gen/server.crt --key ../spacetimedb-cert-gen/server.key #this is HTTPS
++
