@@ -16,6 +16,7 @@ Date:   Wed Apr 23 17:54:07 2025 -0700
 a copy of this patch is on https://github.com/dare3path/SpacetimeDB/tree/ssl_for_standalone_server_NOT_in_PR
 (^ git diff master)
 it's usually rebased on master.
+This branch may be more up to date than this patch.
 
 Requirements:
 * the `Cargo.toml` from the repo's root dir has a `[patch.crates-io]` section for a couple of repos which means these need to be cloned and patched locally and modify the `Cargo.toml` paths in there to point to where they are locally. This enables stuff like sanitizing the private keys and avoiding some obscure connection errors(like getting ChannelClosed instead of the actual error).
