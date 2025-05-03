@@ -80,6 +80,9 @@ and the other args like --client-CA-cert (for mTLS on the server, to verify clie
 
 what happens if server cert is in the CRL of the loaded client CRLs for example?
 ----------------
+zeroize read_file_limited reads for certs too and for crls too, just in case the passed file is mistakenly passed as private.key file.
+
+----------------
 
 
 
