@@ -17,6 +17,7 @@ FIXME: Changing protocol from https to https
 ----------------
 ----------------
 make sure the args depends on each other properly
+double check each, had one fixed already --client-key wasn't required for --client-cert (but an old FIXME still caught that)
 ----------------
 read_file_limited(fixed) and other similar code that isn't in a function(not yet fixed), are both broken
 TODO: load_root_cert is still broken
@@ -33,8 +34,39 @@ still need to check some places like the example client code maybe, to see if it
 and make sure it goes thru map_request_error
 ----------------
 sanitize private keys, like via zeroize (good to zero instead of randomize, for compressed memory)
+check if any places are left, since zeroize-ation on Drop is done in ring, pki-types already, and read_file_limited has one.
+----------------
+use session tickets to speed up TLS reconnecting and use less CPU by not doing the full handshakes.
+
+    How the Server Knows It’s the Same Session:
+
+    The ticket contains a session ID or key that matches an entry in the server’s ServerSessionMemoryCache. When the client presents the ticket, the server decrypts it and looks up the session in the cache. If found, it resumes the session; otherwise, it falls back to a full handshake.
+    The ticket is tied to the session, not the client’s identity, so it’s possible (but rare) for a different client to present a stolen ticket. mTLS mitigates this by requiring a valid client certificate, ensuring the ticket is used by the authorized client.
+
+
+    If mTLS is enabled (via --client-CA-cert), the server still verifies the client’s certificate during a resumed session. The session ticket only resumes cryptographic parameters (e.g., symmetric keys), not authentication. Thus, the server ensures the “same client” (in terms of certificate) is reconnecting by re-validating the client certificate.
+
+
+----------------
+add docs:
+- for functions
+- better out of code docs
+- examples
+----------------
+benchmark
+- with and without TLS
+- with and without session tickets
+----------------
+CRLs - certificate revocation lists
+make sure they're dynamically loaded without needing server restart!
+and make sure the dyn loading of the on-disk CRLs are only done when whatever's writing to it(eg. openssl cmd?) is done writing eg. on file close(d), as to not load incomplete CRLs.
+----------------
+maybe allow for the server's cert(and private key) to be dynamically loaded w/o server restart
+and the other args like --client-CA-cert (for mTLS on the server, to verify client certs against this CA or cert bundle)
 ----------------
 
+what happens if server cert is in the CRL of the loaded client CRLs for example?
+----------------
 
 
 
