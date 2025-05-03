@@ -10,8 +10,8 @@ https://github.com/clockworklabs/SpacetimeDB/pull/2598
 it's meant to remain as a draft, never-to-be-merged mainly because actual devs can do this in a better way, so it's only meant to be an example, working, proof-of-concept patch.
 
 patch is to be applied on latest master, currently:
-commit 59faab8a1ff0cfc966ed708169d93328d19eca9c (upstream/master, upstream/HEAD, master)
-Date:   Wed Apr 23 17:54:07 2025 -0700
+commit 0f70e6330403fde4b9096afd0a098f2f2d34e786 (upstream/master, upstream/HEAD, master)
+Date:   Fri May 2 12:51:48 2025 -0700
 
 a copy of this patch is on https://github.com/dare3path/SpacetimeDB/tree/ssl_for_standalone_server_NOT_in_PR
 (^ git diff master)
@@ -95,7 +95,7 @@ so if that jwt isn't enough for you, then you want this mTLS patch, perhaps in a
 
 
 diff --git a/Cargo.lock b/Cargo.lock
-index f9d50525f..28bf32441 100644
+index 78e77fd7b..ee1061a1e 100644
 --- a/Cargo.lock
 +++ b/Cargo.lock
 @@ -194,6 +194,12 @@ dependencies = [
@@ -326,7 +326,7 @@ index f9d50525f..28bf32441 100644
   "smallvec",
   "target-lexicon",
  ]
-@@ -1398,6 +1540,20 @@ version = "0.1.9"
+@@ -1407,6 +1549,20 @@ version = "0.1.9"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "da692b8d1080ea3045efaab14434d40468c3d8657e42abddfffca87b428f4c1b"
  
@@ -347,7 +347,7 @@ index f9d50525f..28bf32441 100644
  [[package]]
  name = "deranged"
  version = "0.3.11"
-@@ -1525,6 +1681,12 @@ dependencies = [
+@@ -1534,6 +1690,12 @@ dependencies = [
   "shared_child",
  ]
  
@@ -360,7 +360,7 @@ index f9d50525f..28bf32441 100644
  [[package]]
  name = "educe"
  version = "0.4.23"
-@@ -1847,6 +2009,16 @@ dependencies = [
+@@ -1856,6 +2018,16 @@ dependencies = [
   "autocfg",
  ]
  
@@ -377,7 +377,7 @@ index f9d50525f..28bf32441 100644
  [[package]]
  name = "fs2"
  version = "0.4.3"
-@@ -1857,6 +2029,12 @@ dependencies = [
+@@ -1866,6 +2038,12 @@ dependencies = [
   "winapi",
  ]
  
@@ -390,7 +390,7 @@ index f9d50525f..28bf32441 100644
  [[package]]
  name = "fuchsia-cprng"
  version = "0.1.1"
-@@ -2330,9 +2508,9 @@ dependencies = [
+@@ -2339,9 +2517,9 @@ dependencies = [
  
  [[package]]
  name = "hyper"
@@ -402,7 +402,7 @@ index f9d50525f..28bf32441 100644
  dependencies = [
   "bytes",
   "futures-channel",
-@@ -2357,7 +2535,7 @@ checksum = "08afdbb5c31130e3034af566421053ab03787c640246a446327f550d11bcb333"
+@@ -2366,7 +2544,7 @@ checksum = "08afdbb5c31130e3034af566421053ab03787c640246a446327f550d11bcb333"
  dependencies = [
   "futures-util",
   "http 1.1.0",
@@ -411,7 +411,7 @@ index f9d50525f..28bf32441 100644
   "hyper-util",
   "rustls",
   "rustls-pki-types",
-@@ -2387,7 +2565,7 @@ checksum = "70206fc6890eaca9fde8a0bf71caa2ddfc9fe045ac9e5c70df101a7dbde866e0"
+@@ -2396,7 +2574,7 @@ checksum = "70206fc6890eaca9fde8a0bf71caa2ddfc9fe045ac9e5c70df101a7dbde866e0"
  dependencies = [
   "bytes",
   "http-body-util",
@@ -420,7 +420,7 @@ index f9d50525f..28bf32441 100644
   "hyper-util",
   "native-tls",
   "tokio",
-@@ -2397,16 +2575,15 @@ dependencies = [
+@@ -2406,16 +2584,15 @@ dependencies = [
  
  [[package]]
  name = "hyper-util"
@@ -440,7 +440,7 @@ index f9d50525f..28bf32441 100644
   "pin-project-lite",
   "socket2",
   "tokio",
-@@ -2901,6 +3078,12 @@ version = "1.5.0"
+@@ -2911,6 +3088,12 @@ version = "1.5.0"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
  
@@ -453,7 +453,7 @@ index f9d50525f..28bf32441 100644
  [[package]]
  name = "leb128"
  version = "0.2.5"
-@@ -2909,9 +3092,19 @@ checksum = "884e2677b40cc8c339eaefcb701c32ef1fd2493d71118dc0ca4b6a736c93bd67"
+@@ -2919,9 +3102,19 @@ checksum = "884e2677b40cc8c339eaefcb701c32ef1fd2493d71118dc0ca4b6a736c93bd67"
  
  [[package]]
  name = "libc"
@@ -475,7 +475,7 @@ index f9d50525f..28bf32441 100644
  
  [[package]]
  name = "libm"
-@@ -3128,6 +3321,12 @@ version = "0.3.17"
+@@ -3138,6 +3331,12 @@ version = "0.3.17"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
  
@@ -488,7 +488,7 @@ index f9d50525f..28bf32441 100644
  [[package]]
  name = "miniz_oxide"
  version = "0.8.0"
-@@ -3182,7 +3381,7 @@ dependencies = [
+@@ -3192,7 +3391,7 @@ dependencies = [
   "openssl-probe",
   "openssl-sys",
   "schannel",
@@ -497,7 +497,7 @@ index f9d50525f..28bf32441 100644
   "security-framework-sys",
   "tempfile",
  ]
-@@ -3219,6 +3418,16 @@ version = "0.2.0"
+@@ -3229,6 +3428,16 @@ version = "0.2.0"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451"
  
@@ -514,7 +514,7 @@ index f9d50525f..28bf32441 100644
  [[package]]
  name = "nu-ansi-term"
  version = "0.46.0"
-@@ -3390,6 +3599,15 @@ dependencies = [
+@@ -3400,6 +3609,15 @@ dependencies = [
   "memchr",
  ]
  
@@ -530,7 +530,7 @@ index f9d50525f..28bf32441 100644
  [[package]]
  name = "once_cell"
  version = "1.20.2"
-@@ -3817,6 +4035,16 @@ dependencies = [
+@@ -3833,6 +4051,16 @@ dependencies = [
   "yansi",
  ]
  
@@ -547,7 +547,7 @@ index f9d50525f..28bf32441 100644
  [[package]]
  name = "proc-macro-crate"
  version = "3.2.0"
-@@ -4221,7 +4449,7 @@ checksum = "12908dbeb234370af84d0579b9f68258a0f67e201412dd9a2814e6f45b2fc0f0"
+@@ -4237,7 +4465,7 @@ checksum = "12908dbeb234370af84d0579b9f68258a0f67e201412dd9a2814e6f45b2fc0f0"
  dependencies = [
   "hashbrown 0.14.5",
   "log",
@@ -556,7 +556,7 @@ index f9d50525f..28bf32441 100644
   "slice-group-by",
   "smallvec",
  ]
-@@ -4343,7 +4571,7 @@ dependencies = [
+@@ -4359,7 +4587,7 @@ dependencies = [
   "http 1.1.0",
   "http-body 1.0.1",
   "http-body-util",
@@ -565,7 +565,7 @@ index f9d50525f..28bf32441 100644
   "hyper-rustls",
   "hyper-tls 0.6.0",
   "hyper-util",
-@@ -4384,17 +4612,15 @@ dependencies = [
+@@ -4400,17 +4628,15 @@ dependencies = [
  
  [[package]]
  name = "ring"
@@ -585,7 +585,7 @@ index f9d50525f..28bf32441 100644
  ]
  
  [[package]]
-@@ -4475,6 +4701,12 @@ version = "0.1.24"
+@@ -4491,6 +4717,12 @@ version = "0.1.24"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "719b953e2095829ee67db738b3bfa9fa368c94900df327b3f07fe6e794d2fe1f"
  
@@ -598,7 +598,7 @@ index f9d50525f..28bf32441 100644
  [[package]]
  name = "rustc-hash"
  version = "2.0.0"
-@@ -4490,6 +4722,15 @@ dependencies = [
+@@ -4506,6 +4738,15 @@ dependencies = [
   "semver",
  ]
  
@@ -614,7 +614,7 @@ index f9d50525f..28bf32441 100644
  [[package]]
  name = "rustix"
  version = "0.38.40"
-@@ -4505,17 +4746,30 @@ dependencies = [
+@@ -4521,17 +4762,30 @@ dependencies = [
  
  [[package]]
  name = "rustls"
@@ -648,7 +648,7 @@ index f9d50525f..28bf32441 100644
  [[package]]
  name = "rustls-pemfile"
  version = "1.0.4"
-@@ -4536,16 +4790,18 @@ dependencies = [
+@@ -4552,16 +4806,18 @@ dependencies = [
  
  [[package]]
  name = "rustls-pki-types"
@@ -672,7 +672,7 @@ index f9d50525f..28bf32441 100644
   "ring",
   "rustls-pki-types",
   "untrusted",
-@@ -4673,11 +4929,24 @@ dependencies = [
+@@ -4689,11 +4945,24 @@ dependencies = [
   "security-framework-sys",
  ]
  
@@ -699,7 +699,7 @@ index f9d50525f..28bf32441 100644
  dependencies = [
   "core-foundation-sys",
   "libc",
-@@ -4993,9 +5262,9 @@ dependencies = [
+@@ -5009,9 +5278,9 @@ dependencies = [
  
  [[package]]
  name = "socket2"
@@ -711,7 +711,7 @@ index f9d50525f..28bf32441 100644
  dependencies = [
   "libc",
   "windows-sys 0.52.0",
-@@ -5121,7 +5390,7 @@ dependencies = [
+@@ -5137,20 +5406,24 @@ dependencies = [
   "duct",
   "email_address",
   "flate2",
@@ -720,7 +720,6 @@ index f9d50525f..28bf32441 100644
   "futures",
   "http 1.1.0",
   "indicatif",
-@@ -5129,13 +5398,17 @@ dependencies = [
   "is-terminal",
   "itertools 0.12.1",
   "mimalloc",
@@ -738,8 +737,8 @@ index f9d50525f..28bf32441 100644
   "slab",
   "spacetimedb-auth",
   "spacetimedb-client-api-messages",
-@@ -5165,6 +5438,8 @@ dependencies = [
-  "wasmtime",
+@@ -5179,6 +5452,8 @@ dependencies = [
+  "wasmbin",
   "webbrowser",
   "windows-sys 0.59.0",
 + "x509-parser",
@@ -747,7 +746,7 @@ index f9d50525f..28bf32441 100644
  ]
  
  [[package]]
-@@ -5183,7 +5458,7 @@ dependencies = [
+@@ -5197,7 +5472,7 @@ dependencies = [
   "futures",
   "headers",
   "http 1.1.0",
@@ -756,7 +755,7 @@ index f9d50525f..28bf32441 100644
   "hyper-util",
   "itoa",
   "jemalloc_pprof",
-@@ -5303,7 +5578,7 @@ dependencies = [
+@@ -5335,7 +5610,7 @@ dependencies = [
   "hashbrown 0.15.1",
   "hex",
   "hostname",
@@ -765,7 +764,7 @@ index f9d50525f..28bf32441 100644
   "imara-diff",
   "indexmap 2.6.0",
   "itertools 0.12.1",
-@@ -5325,7 +5600,7 @@ dependencies = [
+@@ -5357,7 +5632,7 @@ dependencies = [
   "regex",
   "reqwest 0.12.9",
   "rustc-demangle",
@@ -774,7 +773,7 @@ index f9d50525f..28bf32441 100644
   "scopeguard",
   "semver",
   "serde",
-@@ -5495,15 +5770,21 @@ dependencies = [
+@@ -5527,15 +5802,21 @@ dependencies = [
   "blake3",
   "bytes",
   "chrono",
@@ -796,7 +795,7 @@ index f9d50525f..28bf32441 100644
   "serde",
   "serde_json",
   "spacetimedb-bindings-macro",
-@@ -5511,7 +5792,10 @@ dependencies = [
+@@ -5543,7 +5824,10 @@ dependencies = [
   "spacetimedb-metrics",
   "spacetimedb-primitives",
   "spacetimedb-sats",
@@ -807,7 +806,7 @@ index f9d50525f..28bf32441 100644
  ]
  
  [[package]]
-@@ -5648,10 +5932,12 @@ dependencies = [
+@@ -5680,10 +5964,12 @@ dependencies = [
  name = "spacetimedb-sdk"
  version = "1.1.1"
  dependencies = [
@@ -820,7 +819,7 @@ index f9d50525f..28bf32441 100644
   "cursive",
   "futures",
   "futures-channel",
-@@ -5659,9 +5945,13 @@ dependencies = [
+@@ -5691,9 +5977,13 @@ dependencies = [
   "home",
   "http 1.1.0",
   "log",
@@ -834,7 +833,7 @@ index f9d50525f..28bf32441 100644
   "spacetimedb-client-api-messages",
   "spacetimedb-data-structures",
   "spacetimedb-lib",
-@@ -5719,6 +6009,7 @@ dependencies = [
+@@ -5751,6 +6041,7 @@ dependencies = [
   "anyhow",
   "async-trait",
   "axum",
@@ -842,9 +841,9 @@ index f9d50525f..28bf32441 100644
   "clap 4.5.20",
   "dirs",
   "futures",
-@@ -5728,8 +6019,14 @@ dependencies = [
-  "once_cell",
+@@ -5761,8 +6052,14 @@ dependencies = [
   "openssl",
+  "parse-size",
   "prometheus",
 + "ring",
 + "rustls",
@@ -857,7 +856,7 @@ index f9d50525f..28bf32441 100644
   "sled",
   "socket2",
   "spacetimedb-client-api",
-@@ -5745,6 +6042,8 @@ dependencies = [
+@@ -5779,6 +6076,8 @@ dependencies = [
   "toml 0.8.19",
   "tower-http",
   "tracing",
@@ -866,7 +865,7 @@ index f9d50525f..28bf32441 100644
  ]
  
  [[package]]
-@@ -5858,12 +6157,6 @@ dependencies = [
+@@ -5893,12 +6192,6 @@ dependencies = [
   "typed-arena",
  ]
  
@@ -879,7 +878,7 @@ index f9d50525f..28bf32441 100644
  [[package]]
  name = "sptr"
  version = "0.3.2"
-@@ -5878,7 +6171,7 @@ checksum = "78ea1056caa9180e7e5727eed1a377d96c9f4615303fa82d2f4c202c64736dee"
+@@ -5913,7 +6206,7 @@ checksum = "78ea1056caa9180e7e5727eed1a377d96c9f4615303fa82d2f4c202c64736dee"
  dependencies = [
   "async-trait",
   "educe",
@@ -888,7 +887,7 @@ index f9d50525f..28bf32441 100644
   "futures",
   "glob",
   "humantime",
-@@ -5936,7 +6229,7 @@ dependencies = [
+@@ -5971,7 +6264,7 @@ dependencies = [
   "clap 4.5.20",
   "console",
   "derive_more",
@@ -897,7 +896,7 @@ index f9d50525f..28bf32441 100644
   "futures",
   "glob",
   "itertools 0.12.1",
-@@ -7868,6 +8161,23 @@ dependencies = [
+@@ -7903,6 +8196,23 @@ dependencies = [
   "tap",
  ]
  
@@ -922,7 +921,7 @@ index f9d50525f..28bf32441 100644
  name = "xattr"
  version = "1.3.1"
 diff --git a/Cargo.toml b/Cargo.toml
-index e4d7cf8c5..c9a0fc3ee 100644
+index 296e4d58a..8d1be8ad3 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
 @@ -66,7 +66,8 @@ lto = "thin"
@@ -935,7 +934,7 @@ index e4d7cf8c5..c9a0fc3ee 100644
  debug-assertions = true
  overflow-checks = true
  lto = false
-@@ -129,7 +130,12 @@ arrayvec = "0.7.2"
+@@ -130,7 +131,12 @@ arrayvec = "0.7.2"
  async-stream = "0.3.6"
  async-trait = "0.1.68"
  axum = { version = "0.7", features = ["tracing"] }
@@ -948,7 +947,7 @@ index e4d7cf8c5..c9a0fc3ee 100644
  backtrace = "0.3.66"
  base64 = "0.21.2"
  bigdecimal = "0.4.7"
-@@ -178,8 +184,9 @@ home = "0.5"
+@@ -180,8 +186,9 @@ home = "0.5"
  hostname = "^0.3"
  http = "1.0"
  humantime = "2.1.0"
@@ -960,7 +959,7 @@ index e4d7cf8c5..c9a0fc3ee 100644
  imara-diff = "0.1.3"
  indexmap = "2.0.0"
  indicatif = "0.17"
-@@ -214,7 +221,12 @@ rand = "0.9"
+@@ -217,7 +224,12 @@ rand = "0.9"
  rayon = "1.8"
  rayon-core = "1.11.0"
  regex = "1"
@@ -974,7 +973,7 @@ index e4d7cf8c5..c9a0fc3ee 100644
  ron = "0.8"
  rusqlite = { version = "0.29.0", features = ["bundled", "column_decltype"] }
  rust_decimal = { version = "1.29.1", features = ["db-tokio-postgres"] }
-@@ -285,6 +297,29 @@ tikv-jemalloc-ctl = { version = "0.6.0", features = ["stats"] }
+@@ -288,6 +300,29 @@ tikv-jemalloc-ctl = { version = "0.6.0", features = ["stats"] }
  jemalloc_pprof = { version = "0.7", features = ["symbolize", "flamegraph"] }
  zstd-framed = { version = "0.1.1", features = ["tokio"] }
  
@@ -1004,10 +1003,11 @@ index e4d7cf8c5..c9a0fc3ee 100644
  # Vendor the openssl we rely on, rather than depend on a
  # potentially very old system version.
  openssl = { version = "0.10", features = ["vendored"] }
-@@ -317,3 +352,80 @@ features = [
+@@ -319,3 +354,81 @@ features = [
+   "broadcast",
    "ondemand",
  ]
- 
++
 +#XXX: caveat: this patch section must exist in client/server external repos, even tho it works for those within this repo, in ./crates/sdk/... otherwise you'll get these errors:
 +#/home/user/SOURCE/my/quickstart-chat/client
 +#$ cargo build
@@ -1086,10 +1086,10 @@ index e4d7cf8c5..c9a0fc3ee 100644
 +#XXX: if you're not me, you'll want this instead (or clone this locally in a path and change the path above to reflect where u've cloned it):
 +#ring = { git="https://github.com/dare3path/ring", branch="zeroize_on_drop" }
 diff --git a/crates/cli/Cargo.toml b/crates/cli/Cargo.toml
-index 591d80a3c..a5ee09bfb 100644
+index 6f9d29020..70346cd15 100644
 --- a/crates/cli/Cargo.toml
 +++ b/crates/cli/Cargo.toml
-@@ -68,12 +68,21 @@ tokio.workspace = true
+@@ -69,11 +69,20 @@ tokio.workspace = true
  tokio-tungstenite.workspace = true
  toml.workspace = true
  toml_edit.workspace = true
@@ -1097,7 +1097,6 @@ index 591d80a3c..a5ee09bfb 100644
 +tracing = { workspace = true } #, features = ["release_max_level_off"] }
  walkdir.workspace = true
  wasmbin.workspace = true
- wasmtime.workspace = true
  webbrowser.workspace = true
  clap-markdown.workspace = true
 +#native-tls = "0.2"
@@ -4566,10 +4565,10 @@ index 436520d50..4f022726d 100644
      pub(crate) fn parse_response(bytes: &[u8]) -> Result<ServerMessage<BsatnFormat>, WsError> {
          let (compression, bytes) = bytes.split_first().ok_or(WsError::EmptyMessage)?;
 diff --git a/crates/standalone/Cargo.toml b/crates/standalone/Cargo.toml
-index 5207edf40..6bad5bc57 100644
+index a1583855c..642041ac3 100644
 --- a/crates/standalone/Cargo.toml
 +++ b/crates/standalone/Cargo.toml
-@@ -29,6 +29,25 @@ spacetimedb-paths.workspace = true
+@@ -30,6 +30,25 @@ spacetimedb-table.workspace = true
  anyhow.workspace = true
  async-trait.workspace = true
  axum.workspace = true
@@ -4596,7 +4595,7 @@ index 5207edf40..6bad5bc57 100644
  dirs.workspace = true
  futures.workspace = true
 diff --git a/crates/standalone/src/subcommands/start.rs b/crates/standalone/src/subcommands/start.rs
-index d74267c64..74300041a 100644
+index e7c2bb69c..f361b2d67 100644
 --- a/crates/standalone/src/subcommands/start.rs
 +++ b/crates/standalone/src/subcommands/start.rs
 @@ -1,4 +1,9 @@
@@ -4621,15 +4620,14 @@ index d74267c64..74300041a 100644
  
  pub fn cli() -> clap::Command {
      clap::Command::new("start")
-@@ -67,9 +75,172 @@ pub fn cli() -> clap::Command {
-         .arg(Arg::new("in_memory").long("in-memory").action(SetTrue).help(
-             "If specified the database will run entirely in memory. After the process exits all data will be lost.",
-         ))
-+
+@@ -72,9 +80,171 @@ pub fn cli() -> clap::Command {
+                 "The maximum size of the page pool in bytes. Should be a multiple of 64KiB. The default is 8GiB.",
+             ),
+         )
++        .arg(Arg::new("ssl").long("ssl").alias("tls").alias("https").alias("secure").action(clap::ArgAction::SetTrue).help("enables the standalone server to listen in SSL mode, ie. use https instead of http to connect to it. Aliases --tls, --ssl, --secure, or --https."))
 +        .arg(spacetimedb_lib::client_trust_cert())
 +        .arg(spacetimedb_lib::client_trust_system_root_store())
 +        .arg(spacetimedb_lib::client_no_trust_system_root_store())
-+
 +        .arg(
 +            Arg::new("ssl")
 +            .long("ssl")
@@ -4794,16 +4792,16 @@ index d74267c64..74300041a 100644
  pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
      let listen_addr = args.get_one::<String>("listen_addr").unwrap();
      let cert_dir = args.get_one::<spacetimedb_paths::cli::ConfigDir>("jwt_key_dir");
-@@ -90,7 +261,7 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
+@@ -104,7 +274,7 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
+         page_pool_max_size,
      };
-     let db_config = Config { storage };
  
 -    banner();
 +    //banner();
      let exe_name = std::env::current_exe()?;
      let exe_name = exe_name.file_name().unwrap().to_str().unwrap();
      println!("{} version: {}", exe_name, env!("CARGO_PKG_VERSION"));
-@@ -143,55 +314,166 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
+@@ -158,55 +328,166 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
      let extra = axum::Router::new().nest("/health", spacetimedb_client_api::routes::health::router());
      let service = router(&ctx, db_routes, extra).with_state(ctx);
  
