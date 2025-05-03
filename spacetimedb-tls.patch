@@ -938,7 +938,7 @@ index 78e77fd7b..ae2deacce 100644
  name = "xattr"
  version = "1.3.1"
 diff --git a/Cargo.toml b/Cargo.toml
-index 296e4d58a..8d1be8ad3 100644
+index 296e4d58a..cd5ebbb51 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
 @@ -66,7 +66,8 @@ lto = "thin"
@@ -976,7 +976,7 @@ index 296e4d58a..8d1be8ad3 100644
  imara-diff = "0.1.3"
  indexmap = "2.0.0"
  indicatif = "0.17"
-@@ -217,7 +224,12 @@ rand = "0.9"
+@@ -217,7 +224,13 @@ rand = "0.9"
  rayon = "1.8"
  rayon-core = "1.11.0"
  regex = "1"
@@ -986,19 +986,18 @@ index 296e4d58a..8d1be8ad3 100644
 +#rustls = "0.23"
 +rustls= { version="0.23", default-features = true, features=[ "ring" ] }
 +native-tls = "0.2"  # Explicitly add for Connector::NativeTls
-+ring = { version= "0.17.14", default-features = true, features = ["trace_drop_and_zeroize"] }  # explicitly add this for the CryptoProvider, even tho it's included transitively. +  we need the trace feature
++#XXX: using 'my_fork' feature ensures the current crate uses the dep from the fork and allows that fork to control any extra features like tracing.
++ring = { version= "0.17.14", default-features = true, features = ["my_fork"] }  # explicitly add this for the CryptoProvider, even tho it's included transitively. +  we need the trace feature
  ron = "0.8"
  rusqlite = { version = "0.29.0", features = ["bundled", "column_decltype"] }
  rust_decimal = { version = "1.29.1", features = ["db-tokio-postgres"] }
-@@ -288,6 +300,29 @@ tikv-jemalloc-ctl = { version = "0.6.0", features = ["stats"] }
+@@ -288,6 +301,27 @@ tikv-jemalloc-ctl = { version = "0.6.0", features = ["stats"] }
  jemalloc_pprof = { version = "0.7", features = ["symbolize", "flamegraph"] }
  zstd-framed = { version = "0.1.1", features = ["tokio"] }
  
 +
-+#uncomment this to disable the feature: (and comment the next one)
-+#rustls-pki-types = { version = "1.11" }
-+#XXX: doing this here: (comment the above, uncomment this next)
-+rustls-pki-types = { version = "1.11.0", features = ["trace_drop_and_zeroize"] }
++rustls-pki-types = { version = "1.11.0", features = ["my_fork"] }
++#XXX: using 'my_fork' feature ensures the current crate uses the dep from the fork and allows that fork to control any extra features like tracing.
 +#rustls-pki-types = { path= "/home/user/SOURCE/github/modified_forks/pki-types", features = ["trace_drop_and_zeroize"] } #don't use this path= way, because it compiles external client/server projects but they're incomplete, unless u add the patch section to them too.
 +#and then in things like ./crates/standalone/Cargo.toml doing:
 +#rustls-pki-types.workspace=true
@@ -1020,7 +1019,7 @@ index 296e4d58a..8d1be8ad3 100644
  # Vendor the openssl we rely on, rather than depend on a
  # potentially very old system version.
  openssl = { version = "0.10", features = ["vendored"] }
-@@ -319,3 +354,81 @@ features = [
+@@ -319,3 +353,81 @@ features = [
    "broadcast",
    "ondemand",
  ]
@@ -2824,7 +2823,7 @@ index 6eb2039c7..6feba2844 100644
      let task = async {
          subscribe(&mut ws, queries.cloned().map(Into::into).collect()).await?;
 diff --git a/crates/cli/src/util.rs b/crates/cli/src/util.rs
-index 20e0591ca..78ec57f45 100644
+index 20e0591ca..af22d9f63 100644
 --- a/crates/cli/src/util.rs
 +++ b/crates/cli/src/util.rs
 @@ -9,6 +9,12 @@ use std::path::Path;
@@ -2854,7 +2853,7 @@ index 20e0591ca..78ec57f45 100644
          .await?
          .with_context(|| format!("the dns resolution of `{name_or_identity}` failed."))
  }
-@@ -106,13 +113,157 @@ impl ResponseExt for reqwest::Response {
+@@ -106,13 +113,171 @@ impl ResponseExt for reqwest::Response {
      }
  }
  
@@ -2896,14 +2895,13 @@ index 20e0591ca..78ec57f45 100644
 +    // Load trust certificates
 +    if let Some(path) = trust_server_cert_path {
 +        let cert_data = read_file_limited(path, MAX_CERT_BUNDLE_SIZE).await
-+            //.context(format!("loading trust cert file: {}", path.display()))
 +            .map_err(|e| anyhow::Error::new(TrustCertError::new(path, e)))?;
 +        let certs = rustls_pemfile::certs(&mut std::io::Cursor::new(cert_data))
 +            .collect::<Result<Vec<_>, _>>()
-+            .context(format!("parse trust certificate(s) from file: {}", path.display()))
++            .context(format!("parse trust certificate(s) from file: {}", display_path(path)))
 +            .map_err(|e| anyhow::Error::new(TrustCertError::new(path, e)))?;
 +        if certs.is_empty() {
-+            return Err(anyhow::anyhow!("No valid trust certificate(s) in file: {}", path.display()));
++            return Err(anyhow::anyhow!("No valid trust certificate(s) in file: {}", display_path(path)));
 +        }
 +        use x509_parser::prelude::FromDer;
 +        use sha2::Digest;
@@ -2924,7 +2922,7 @@ index 20e0591ca..78ec57f45 100644
 +//            }
 +            // Parse and log cert details
 +            let (_, parsed) = x509_parser::prelude::X509Certificate::from_der(cert.as_ref())
-+                .context(format!("parse a trust cert from file: {}", path.display()))?;
++                .context(format!("parse a trust cert from file: {}", display_path(path)))?;
 +            let subject = parsed.subject().to_string();
 +            let issuer = parsed.issuer().to_string();
 +            let not_after = parsed.validity().not_after.to_string();
@@ -2938,7 +2936,7 @@ index 20e0591ca..78ec57f45 100644
 +            let reqwest_cert = 
 +                reqwest::Certificate::from_der(&cert)
 +                //anyhow::anyhow!("foo")
-+                .context(format!("convert trusted cert to reqwest format from file: {}", path.display()))
++                .context(format!("convert trusted cert to reqwest format from file: {}", display_path(path)))
 +                .map_err(|e| anyhow::Error::new(TrustCertError::new(path, e)))?;
 +            client_builder = client_builder.add_root_certificate(reqwest_cert);
 +        }
@@ -2955,13 +2953,28 @@ index 20e0591ca..78ec57f45 100644
 +            ?;
 +        //let identity = reqwest::Identity::from_pkcs8_pem(&[&cert_data[..], &key_data[..]].concat())
 +        let identity = reqwest::Identity::from_pkcs8_pem(&cert_data, &key_data)
-+            .context(format!("parse client cert: {}, key: {}", cert_path.display(), key_path.display()))?;
++            .context(format!("parse client cert: {}, key: {}", display_path(cert_path), display_path(key_path)))?;
 +        client_builder = client_builder.identity(identity);
 +        key_data.zeroize();
 +    }
 +
 +    Ok(client_builder)
 +}
++
++pub const UNSPECIFIED_PATH:&str="<unspecified path, ie. None>";
++
++// Function to convert Option<&Path> to a displayable &str
++pub fn display_opt_path(path: Option<&Path>) -> &str {
++    // Match on the Option to handle Some and None cases
++    match path {
++        Some(p) => p.to_str().unwrap_or(UNSPECIFIED_PATH), // Convert Path to &str, fallback if invalid
++        None => UNSPECIFIED_PATH, // Return default for None
++    }
++}
++pub fn display_path(path: &Path) -> &str {
++    path.to_str().unwrap_or(UNSPECIFIED_PATH) // Convert Path to &str, fallback if invalid
++}
++
 +
 +pub fn build_client_with_context(
 +    builder: reqwest::ClientBuilder,
@@ -2973,10 +2986,10 @@ index 20e0591ca..78ec57f45 100644
 +    builder
 +        .build()
 +        .context(
-+            format!("Failed to build client with trusted (server)cert(s) {:?}, with client cert(s): {:?}, with client private key: {:?}, while {} the system/root cert store.",
-+            trust_server_cert_path,
-+            client_cert_path,
-+            client_key_path,
++            format!("Failed to build client with trusted (server)cert(s) {}, with client cert(s): {}, with client private key: {}, while {} the system/root cert store for verifying the server's cert.",
++            display_opt_path(trust_server_cert_path),
++            display_opt_path(client_cert_path),
++            display_opt_path(client_key_path),
 +            if trust_system { "trusting" } else { "NOT trusting" },
 +            )
 +        )
@@ -3013,7 +3026,7 @@ index 20e0591ca..78ec57f45 100644
      let url = format!("{}/v1/database/{}/identity", config.get_host_url(server)?, domain);
      let Some(res) = client.get(url).send().await?.found() else {
          return Ok(None);
-@@ -123,9 +274,47 @@ pub async fn spacetime_dns(
+@@ -123,9 +288,47 @@ pub async fn spacetime_dns(
          .context("identity endpoint did not return an identity")
  }
  
@@ -3064,7 +3077,7 @@ index 20e0591ca..78ec57f45 100644
      let fingerprint = res.text().await?;
      Ok(fingerprint)
  }
-@@ -314,9 +503,21 @@ pub async fn get_login_token_or_log_in(
+@@ -314,9 +517,21 @@ pub async fn get_login_token_or_log_in(
  
      if full_login {
          let host = Url::parse(DEFAULT_AUTH_HOST)?;
@@ -3154,13 +3167,15 @@ index 1057d8fb8..411a4b126 100644
 +#rustls-pki-types = { path = "/home/user/SOURCE/github/modified_forks/pki-types" }
 +#hyper-util = { path ="/home/user/SOURCE/my/channelclosed.reqwest/hyper-util" }
 diff --git a/crates/lib/src/lib.rs b/crates/lib/src/lib.rs
-index d25e317ea..a6c1c8214 100644
+index d25e317ea..d255ca205 100644
 --- a/crates/lib/src/lib.rs
 +++ b/crates/lib/src/lib.rs
-@@ -6,6 +6,23 @@ use spacetimedb_sats::{impl_serialize, WithTypespace};
+@@ -6,6 +6,25 @@ use spacetimedb_sats::{impl_serialize, WithTypespace};
  use std::any::TypeId;
  use std::collections::{btree_map, BTreeMap};
  
++pub const TRACE_DROP_AND_ZEROIZE: bool = false;//TODO: make this depend on ring||pki-types' trace_drop_and_zeroize feature
++
 +macro_rules! non_wasm {
 +    ($($item:item)*) => {
 +        $(
@@ -3181,7 +3196,7 @@ index d25e317ea..a6c1c8214 100644
  pub mod connection_id;
  pub mod db;
  mod direct_index_key;
-@@ -386,3 +403,908 @@ pub fn resolved_type_via_v9<T: SpacetimeType>() -> AlgebraicType {
+@@ -386,3 +405,923 @@ pub fn resolved_type_via_v9<T: SpacetimeType>() -> AlgebraicType {
          .resolve_refs()
          .expect("recursive types not supported")
  }
@@ -3360,10 +3375,13 @@ index d25e317ea..a6c1c8214 100644
 +    impl zeroize::ZeroizeOnDrop for ZeroizingVec {} // Marker
 +    impl Drop for ZeroizingVec {
 +        fn drop(&mut self) {
-+            if self.0.len() > 0 {
-+                eprintln!("!!! Dropping ZeroizingVec after zeroize-ing it.");
-+            } else {
-+                eprintln!("!!! Dropping ZeroizingVec (empty)");
++            //#[cfg(trace_drop_and_zeroize)] // set by ../build.rs if ring or pki-types have it set.
++            if TRACE_DROP_AND_ZEROIZE {
++                if self.0.len() > 0 {
++                    eprintln!("!!! Dropping ZeroizingVec after zeroize-ing it.");
++                } else {
++                    eprintln!("!!! Dropping ZeroizingVec (empty)");
++                }
 +            }
 +            self.0.zeroize();
 +        }
@@ -3386,10 +3404,15 @@ index d25e317ea..a6c1c8214 100644
 +    impl zeroize::ZeroizeOnDrop for ZeroizingBuffer {} // Marker
 +    impl Drop for ZeroizingBuffer {
 +        fn drop(&mut self) {
-+            if self.0.len() > 0 {
-+                eprintln!("!!! Dropping ZeroizingBuffer after zeroize-ing it.");
-+            } else {
-+                eprintln!("!!! Dropping ZeroizingBuffer (empty)");
++            //#[cfg(feature = "trace_drop_and_zeroize")] // set by ../build.rs if ring or pki-types have it set.
++            //#[cfg(trace_drop_and_zeroize)] // set by ../build.rs if ring or pki-types have it set.
++            //XXX: can't really detect if ring(not in lib's Cargo.toml dep) or pki-types(it's in Cargo.toml) has trace_drop_and_zeroize feature since it's indirectly pulled by my_fork (unless I used my_fork=[] in pki-types or ring) but maybe it works via cargo metadata in build.rs, didn't try it. However, decided to use this const and toggle it by editing this source, if needed, ever.
++            if TRACE_DROP_AND_ZEROIZE {
++                if self.0.len() > 0 {
++                    eprintln!("!!! Dropping ZeroizingBuffer after zeroize-ing it.");
++                } else {
++                    eprintln!("!!! Dropping ZeroizingBuffer (empty)");
++                }
 +            }
 +            self.0.zeroize();
 +        }
@@ -3490,7 +3513,7 @@ index d25e317ea..a6c1c8214 100644
 +        }
 +
 +        // Buffer is zeroized automatically on drop (success or error)
-+        // but 'data' isn't, well the Vec<u8> we return is calller's problem to zeroize now.
++        // but 'data' isn't, well the Vec<u8> we return is caller's problem to zeroize now.
 +        Ok(data.into_inner())
 +    }
 +
@@ -3732,35 +3755,42 @@ index d25e317ea..a6c1c8214 100644
 +                    if let Some(ssl_err) = io_err.downcast_ref::<std::io::Error>() {
 +                        if let Some(openssl_err) = ssl_err.get_ref() {
 +                            if let Some(ssl_error) = openssl_err.downcast_ref::<openssl::ssl::Error>() {
-+                                if ssl_error
-+                                    .ssl_error()
-+                                        .map(|stack: &openssl::error::ErrorStack| {
-+                                            stack
-+                                                .errors()
-+                                                .iter()
-+                                                .any(|e| e.reason() == Some("tlsv13 alert certificate required"))
-+                                        })
-+                                .unwrap_or(false)
-+                                {
-+                                    let msg = (
-+                                        if client_cert_path.is_none() || client_key_path.is_none() {
-+                                            "You didn't pass the required client certificate(yours) for mTLS, use --client-cert and --client-key 🔒"
-+                                        } else {
-+                                            "TLS handshake failed: server requires a valid client certificate(yours) for mTLS 🔒"
-+                                        },
-+                                        3,
-+                                    );
-+                                    if msg.1 > max_specificity {
-+                                        //last_message = msg.0;
-+                                        set_string!(last_message, msg.0);
-+                                        max_specificity = msg.1;
-+                                    }
-+                                }
-+                            }
-+                        }
-+                    }
-+                }
-+            }
++                                // BEGIN: Refactored OpenSSL error stack iteration to check multiple reasons
++                                if let Some(stack) = ssl_error.ssl_error() {
++                                    for e in stack.errors() {
++                                        if e.reason() == Some("tlsv13 alert certificate required") {
++                                            let msg = (
++                                                if client_cert_path.is_none() || client_key_path.is_none() {
++                                                    "You didn't pass the required client certificate(yours) for mTLS, use --client-cert and --client-key 🔒"
++                                                } else {
++                                                    "TLS handshake failed: server requires a valid client certificate(yours) for mTLS 🔒"
++                                                },
++                                                3,
++                                            );
++                                            if msg.1 > max_specificity {
++                                                set_string!(last_message, msg.0);
++                                                max_specificity = msg.1;
++                                            }
++                                        }
++                                        if e.reason() == Some("tlsv1 alert unknown ca") {
++                                            assert!(client_cert_path.is_some() && client_key_path.is_some(),"dev error, this should be unreachable: TLS handshake failed: server requires a client certificate for mTLS, but none was provided. Use --client-cert and --client-key with valid files.");
++                                            let msg = (
++                                                    "TLS handshake failed: the server does not trust the CA that signed your client certificate. Ensure the server is configured with the correct CA certificate via --client-trust-cert (the CA that signed your client1.crt, e.g., ca4clients.crt)."
++                                                ,
++                                                3,
++                                            );
++                                            if msg.1 > max_specificity {
++                                                set_string!(last_message, msg.0);
++                                                max_specificity = msg.1;
++                                            }
++                                        }//if
++                                    }//for
++                                }//if
++                            }//if
++                        }//if
++                    }//if
++                }//if
++            }//if
 +            // Check reqwest::Error
 +            else if let Some(reqwest_err) = err.downcast_ref::<reqwest::Error>() {
 +                let msg = if reqwest_err.is_connect() {
