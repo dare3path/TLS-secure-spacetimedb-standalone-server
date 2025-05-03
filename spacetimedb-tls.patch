@@ -95,7 +95,7 @@ so if that jwt isn't enough for you, then you want this mTLS patch, perhaps in a
 
 
 diff --git a/Cargo.lock b/Cargo.lock
-index 78e77fd7b..ee1061a1e 100644
+index 78e77fd7b..ae2deacce 100644
 --- a/Cargo.lock
 +++ b/Cargo.lock
 @@ -194,6 +194,12 @@ dependencies = [
@@ -755,6 +755,15 @@ index 78e77fd7b..ee1061a1e 100644
   "hyper-util",
   "itoa",
   "jemalloc_pprof",
+@@ -5260,7 +5535,7 @@ version = "1.1.1"
+ dependencies = [
+  "anyhow",
+  "convert_case 0.6.0",
+- "fs-err",
++ "fs-err 2.11.0",
+  "insta",
+  "itertools 0.12.1",
+  "regex",
 @@ -5335,7 +5610,7 @@ dependencies = [
   "hashbrown 0.15.1",
   "hex",
@@ -833,7 +842,15 @@ index 78e77fd7b..ee1061a1e 100644
   "spacetimedb-client-api-messages",
   "spacetimedb-data-structures",
   "spacetimedb-lib",
-@@ -5751,6 +6041,7 @@ dependencies = [
+@@ -5703,6 +5993,7 @@ dependencies = [
+  "thiserror 1.0.69",
+  "tokio",
+  "tokio-tungstenite",
++ "zeroize",
+ ]
+ 
+ [[package]]
+@@ -5751,6 +6042,7 @@ dependencies = [
   "anyhow",
   "async-trait",
   "axum",
@@ -841,7 +858,7 @@ index 78e77fd7b..ee1061a1e 100644
   "clap 4.5.20",
   "dirs",
   "futures",
-@@ -5761,8 +6052,14 @@ dependencies = [
+@@ -5761,8 +6053,14 @@ dependencies = [
   "openssl",
   "parse-size",
   "prometheus",
@@ -856,7 +873,7 @@ index 78e77fd7b..ee1061a1e 100644
   "sled",
   "socket2",
   "spacetimedb-client-api",
-@@ -5779,6 +6076,8 @@ dependencies = [
+@@ -5779,6 +6077,8 @@ dependencies = [
   "toml 0.8.19",
   "tower-http",
   "tracing",
@@ -865,7 +882,7 @@ index 78e77fd7b..ee1061a1e 100644
  ]
  
  [[package]]
-@@ -5893,12 +6192,6 @@ dependencies = [
+@@ -5893,12 +6193,6 @@ dependencies = [
   "typed-arena",
  ]
  
@@ -878,7 +895,7 @@ index 78e77fd7b..ee1061a1e 100644
  [[package]]
  name = "sptr"
  version = "0.3.2"
-@@ -5913,7 +6206,7 @@ checksum = "78ea1056caa9180e7e5727eed1a377d96c9f4615303fa82d2f4c202c64736dee"
+@@ -5913,7 +6207,7 @@ checksum = "78ea1056caa9180e7e5727eed1a377d96c9f4615303fa82d2f4c202c64736dee"
  dependencies = [
   "async-trait",
   "educe",
@@ -887,7 +904,7 @@ index 78e77fd7b..ee1061a1e 100644
   "futures",
   "glob",
   "humantime",
-@@ -5971,7 +6264,7 @@ dependencies = [
+@@ -5971,7 +6265,7 @@ dependencies = [
   "clap 4.5.20",
   "console",
   "derive_more",
@@ -896,7 +913,7 @@ index 78e77fd7b..ee1061a1e 100644
   "futures",
   "glob",
   "itertools 0.12.1",
-@@ -7903,6 +8196,23 @@ dependencies = [
+@@ -7903,6 +8197,23 @@ dependencies = [
   "tap",
  ]
  
@@ -2807,15 +2824,10 @@ index 6eb2039c7..6feba2844 100644
      let task = async {
          subscribe(&mut ws, queries.cloned().map(Into::into).collect()).await?;
 diff --git a/crates/cli/src/util.rs b/crates/cli/src/util.rs
-index 20e0591ca..51d00644e 100644
+index 20e0591ca..78ec57f45 100644
 --- a/crates/cli/src/util.rs
 +++ b/crates/cli/src/util.rs
-@@ -1,3 +1,4 @@
-+use anyhow::anyhow;
- use anyhow::Context;
- use base64::{engine::general_purpose::STANDARD_NO_PAD as BASE_64_STD_NO_PAD, Engine as _};
- use reqwest::{RequestBuilder, Url};
-@@ -9,6 +10,12 @@ use std::path::Path;
+@@ -9,6 +9,12 @@ use std::path::Path;
  
  use crate::config::Config;
  use crate::login::{spacetimedb_login_force, DEFAULT_AUTH_HOST};
@@ -2828,7 +2840,7 @@ index 20e0591ca..51d00644e 100644
  
  pub const UNSTABLE_WARNING: &str = "WARNING: This command is UNSTABLE and subject to breaking changes.";
  
-@@ -17,11 +24,12 @@ pub async fn database_identity(
+@@ -17,11 +23,12 @@ pub async fn database_identity(
      config: &Config,
      name_or_identity: &str,
      server: Option<&str>,
@@ -2842,7 +2854,7 @@ index 20e0591ca..51d00644e 100644
          .await?
          .with_context(|| format!("the dns resolution of `{name_or_identity}` failed."))
  }
-@@ -106,13 +114,158 @@ impl ResponseExt for reqwest::Response {
+@@ -106,13 +113,157 @@ impl ResponseExt for reqwest::Response {
      }
  }
  
@@ -2934,8 +2946,7 @@ index 20e0591ca..51d00644e 100644
 +
 +    // Configure client authentication aka mTLS
 +    if let Some(cert_path) = client_cert_path {
-+        //FIXME: clap ensures this, so if this is failing it's a different reason?:
-+        let key_path = client_key_path.ok_or_else(|| anyhow!("--client-key is required with --client-cert"))?;
++        let key_path = client_key_path.context("clap ensures if --client-cert was used --client-key was too with a path, so reaching this is impossible?!")?;
 +        let cert_data = read_file_limited(cert_path, MAX_CERT_BUNDLE_SIZE).await
 +            .map_err(|e| anyhow::Error::new(ClientCertError::new(cert_path,e)))
 +            ?;
@@ -3002,7 +3013,7 @@ index 20e0591ca..51d00644e 100644
      let url = format!("{}/v1/database/{}/identity", config.get_host_url(server)?, domain);
      let Some(res) = client.get(url).send().await?.found() else {
          return Ok(None);
-@@ -123,9 +276,47 @@ pub async fn spacetime_dns(
+@@ -123,9 +274,47 @@ pub async fn spacetime_dns(
          .context("identity endpoint did not return an identity")
  }
  
@@ -3053,7 +3064,7 @@ index 20e0591ca..51d00644e 100644
      let fingerprint = res.text().await?;
      Ok(fingerprint)
  }
-@@ -314,9 +505,21 @@ pub async fn get_login_token_or_log_in(
+@@ -314,9 +503,21 @@ pub async fn get_login_token_or_log_in(
  
      if full_login {
          let host = Url::parse(DEFAULT_AUTH_HOST)?;
@@ -3143,7 +3154,7 @@ index 1057d8fb8..411a4b126 100644
 +#rustls-pki-types = { path = "/home/user/SOURCE/github/modified_forks/pki-types" }
 +#hyper-util = { path ="/home/user/SOURCE/my/channelclosed.reqwest/hyper-util" }
 diff --git a/crates/lib/src/lib.rs b/crates/lib/src/lib.rs
-index d25e317ea..00b044a80 100644
+index d25e317ea..a6c1c8214 100644
 --- a/crates/lib/src/lib.rs
 +++ b/crates/lib/src/lib.rs
 @@ -6,6 +6,23 @@ use spacetimedb_sats::{impl_serialize, WithTypespace};
@@ -3170,7 +3181,7 @@ index d25e317ea..00b044a80 100644
  pub mod connection_id;
  pub mod db;
  mod direct_index_key;
-@@ -386,3 +403,909 @@ pub fn resolved_type_via_v9<T: SpacetimeType>() -> AlgebraicType {
+@@ -386,3 +403,908 @@ pub fn resolved_type_via_v9<T: SpacetimeType>() -> AlgebraicType {
          .resolve_refs()
          .expect("recursive types not supported")
  }
@@ -3239,8 +3250,8 @@ index d25e317ea..00b044a80 100644
 +            .action(clap::ArgAction::Set)
 +            .value_parser(clap::value_parser!(std::path::PathBuf))
 +            .required(false)
-+            //        .requires("ssl")
-+            .help("Path to the client’s certificate (PEM format) for authentication")
++            .requires("client-key")
++            .help("Path to the client’s certificate (PEM format) for authentication, this will be presented to the server that we(the client) are trying to connect to.")
 +    }
 +
 +    //for the cli clients:
@@ -3252,8 +3263,7 @@ index d25e317ea..00b044a80 100644
 +            .value_parser(clap::value_parser!(std::path::PathBuf))
 +            .required(false)
 +            .requires("client-cert")
-+            //        .requires("ssl")
-+            .help("Path to the client’s private key (PEM format) for authentication")
++            .help("Path to the client’s private key (PEM format) for authentication, this will be used our(client) outgoing connection to the server.")
 +    }
 +
 +    //for cli clients, this is the default(to trust):
@@ -4595,7 +4605,7 @@ index a1583855c..642041ac3 100644
  dirs.workspace = true
  futures.workspace = true
 diff --git a/crates/standalone/src/subcommands/start.rs b/crates/standalone/src/subcommands/start.rs
-index e7c2bb69c..f361b2d67 100644
+index e7c2bb69c..71e448ba7 100644
 --- a/crates/standalone/src/subcommands/start.rs
 +++ b/crates/standalone/src/subcommands/start.rs
 @@ -1,4 +1,9 @@
@@ -4620,11 +4630,10 @@ index e7c2bb69c..f361b2d67 100644
  
  pub fn cli() -> clap::Command {
      clap::Command::new("start")
-@@ -72,9 +80,171 @@ pub fn cli() -> clap::Command {
+@@ -72,9 +80,170 @@ pub fn cli() -> clap::Command {
                  "The maximum size of the page pool in bytes. Should be a multiple of 64KiB. The default is 8GiB.",
              ),
          )
-+        .arg(Arg::new("ssl").long("ssl").alias("tls").alias("https").alias("secure").action(clap::ArgAction::SetTrue).help("enables the standalone server to listen in SSL mode, ie. use https instead of http to connect to it. Aliases --tls, --ssl, --secure, or --https."))
 +        .arg(spacetimedb_lib::client_trust_cert())
 +        .arg(spacetimedb_lib::client_trust_system_root_store())
 +        .arg(spacetimedb_lib::client_no_trust_system_root_store())
@@ -4792,7 +4801,7 @@ index e7c2bb69c..f361b2d67 100644
  pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
      let listen_addr = args.get_one::<String>("listen_addr").unwrap();
      let cert_dir = args.get_one::<spacetimedb_paths::cli::ConfigDir>("jwt_key_dir");
-@@ -104,7 +274,7 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
+@@ -104,7 +273,7 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
          page_pool_max_size,
      };
  
@@ -4801,7 +4810,7 @@ index e7c2bb69c..f361b2d67 100644
      let exe_name = std::env::current_exe()?;
      let exe_name = exe_name.file_name().unwrap().to_str().unwrap();
      println!("{} version: {}", exe_name, env!("CARGO_PKG_VERSION"));
-@@ -158,55 +328,166 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
+@@ -158,55 +327,166 @@ pub async fn exec(args: &ArgMatches) -> anyhow::Result<()> {
      let extra = axum::Router::new().nest("/health", spacetimedb_client_api::routes::health::router());
      let service = router(&ctx, db_routes, extra).with_state(ctx);
  
