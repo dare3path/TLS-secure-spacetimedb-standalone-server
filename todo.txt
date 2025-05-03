@@ -36,16 +36,29 @@ and make sure it goes thru map_request_error
 sanitize private keys, like via zeroize (good to zero instead of randomize, for compressed memory)
 check if any places are left, since zeroize-ation on Drop is done in ring, pki-types already, and read_file_limited has one.
 ----------------
-use session tickets to speed up TLS reconnecting and use less CPU by not doing the full handshakes.
+//XXX: ok this isn't good, really, because the client only does 1 connection per process lifetime and to benefit from tickets it would have to save the ticket offline/on_disk, even tho it's encrypted with server's temp key(refreshed every 12 (or 24 with grace period) hours), and then reuse it on next run/connection; it doesn't really seem safe enough or worth enough, at this time.
+//
+//use session tickets to speed up TLS reconnecting and use less CPU by not doing the full handshakes.
+//
+//    How the Server Knows It’s the Same Session:
+//
+//    The ticket contains a session ID or key that matches an entry in the server’s ServerSessionMemoryCache. When the client presents the ticket, the server decrypts it and looks up the session in the cache. If found, it resumes the session; otherwise, it falls back to a full handshake.
+//    The ticket is tied to the session, not the client’s identity, so it’s possible (but rare) for a different client to present a stolen ticket. mTLS mitigates this by requiring a valid client certificate, ensuring the ticket is used by the authorized client.
+//
+//
+//    If mTLS is enabled (via --client-CA-cert), the server still verifies the client’s certificate during a resumed session. The session ticket only resumes cryptographic parameters (e.g., symmetric keys), not authentication. Thus, the server ensures the “same client” (in terms of certificate) is reconnecting by re-validating the client certificate.
+//
+//
+to reconsider, maybe:
+For long-lived clients (e.g., WebSocket connections in crates/sdk/src/websocket.rs):
 
-    How the Server Knows It’s the Same Session:
+    Tickets are useful, as WebSocket clients may reconnect multiple times within one process (e.g., after a network drop). The tokio-tungstenite client in websocket.rs can reuse tickets if configured with a shared rustls::ClientConfig.
+WebSocket Clients: Moderate benefit, as reconnections within one process (e.g., spacetime logs --follow) can reuse tickets, reducing latency.
+Future Clients: If SpacetimeDB adds long-running clients (e.g., a monitoring tool), tickets could optimize frequent reconnections.
+Recommendation:
 
-    The ticket contains a session ID or key that matches an entry in the server’s ServerSessionMemoryCache. When the client presents the ticket, the server decrypts it and looks up the session in the cache. If found, it resumes the session; otherwise, it falls back to a full handshake.
-    The ticket is tied to the session, not the client’s identity, so it’s possible (but rare) for a different client to present a stolen ticket. mTLS mitigates this by requiring a valid client certificate, ensuring the ticket is used by the authorized client.
-
-
-    If mTLS is enabled (via --client-CA-cert), the server still verifies the client’s certificate during a resumed session. The session ticket only resumes cryptographic parameters (e.g., symmetric keys), not authentication. Thus, the server ensures the “same client” (in terms of certificate) is reconnecting by re-validating the client certificate.
-
+    Keep session tickets enabled server-side for WebSocket clients and potential future use cases. The server’s TicketSwitcher (12-hour rotation, 24-hour ticket validity) is low-overhead and secure (no persistence).
+    Disable client-side ticket persistence, relying on in-memory ClientSessionMemoryCache. Since CLI clients don’t reuse tickets, this has no impact.
 
 ----------------
 add docs:
@@ -58,10 +71,10 @@ benchmark
 - with and without session tickets
 ----------------
 CRLs - certificate revocation lists
-make sure they're dynamically loaded without needing server restart!
+make sure they're dynamically loaded without needing server restart! - can't do this consistently and across platform, so maybe instead just connect as a client to the server and tell it to reload it (ie. manually)
 and make sure the dyn loading of the on-disk CRLs are only done when whatever's writing to it(eg. openssl cmd?) is done writing eg. on file close(d), as to not load incomplete CRLs.
 ----------------
-maybe allow for the server's cert(and private key) to be dynamically loaded w/o server restart
+maybe allow for the server's cert(and private key) to be dynamically loaded w/o server restart - well not via inotify as it seems unreliable to me, but by connecting to server as a client and telling it to do it?!
 and the other args like --client-CA-cert (for mTLS on the server, to verify client certs against this CA or cert bundle)
 ----------------
 
