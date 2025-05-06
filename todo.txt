@@ -60,6 +60,8 @@ Recommendation:
     Keep session tickets enabled server-side for WebSocket clients and potential future use cases. The server’s TicketSwitcher (12-hour rotation, 24-hour ticket validity) is low-overhead and secure (no persistence).
     Disable client-side ticket persistence, relying on in-memory ClientSessionMemoryCache. Since CLI clients don’t reuse tickets, this has no impact.
 
+apparently tickets are used by default in rustls v 0.23.26, or so grok says.
+
 ----------------
 add docs:
 - for functions
@@ -73,6 +75,10 @@ benchmark
 CRLs - certificate revocation lists
 make sure they're dynamically loaded without needing server restart! - can't do this consistently and across platform, so maybe instead just connect as a client to the server and tell it to reload it (ie. manually)
 and make sure the dyn loading of the on-disk CRLs are only done when whatever's writing to it(eg. openssl cmd?) is done writing eg. on file close(d), as to not load incomplete CRLs.
+
+grok3 hallucinated one or two method names(like update_tls_config for axum-server 0.6 apparently) thus dynamic loading isn't possible out of the box as it seemed initially. However I now see reload_from_config exists in 0.7.2 axum-server.
+
+this attempt yielded a huge mess so far, unclear what even got broken from before as it's still compile error-ing.
 ----------------
 maybe allow for the server's cert(and private key) to be dynamically loaded w/o server restart - well not via inotify as it seems unreliable to me, but by connecting to server as a client and telling it to do it?!
 and the other args like --client-CA-cert (for mTLS on the server, to verify client certs against this CA or cert bundle)
